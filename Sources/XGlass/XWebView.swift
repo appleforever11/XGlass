@@ -42,6 +42,7 @@ private let xGlassChromeSuppressionScript = #"""
   const addControlAttribute = "data-xglass-add-control";
   const addSurfaceAttribute = "data-xglass-add-surface";
   const composerSurfaceAttribute = "data-xglass-composer-surface";
+  const replyComposerAttribute = "data-xglass-reply-composer";
   let pendingFrame = 0;
 
   function normalized(value) {
@@ -168,6 +169,48 @@ private let xGlassChromeSuppressionScript = #"""
     }
   }
 
+  function isComposerControl(node) {
+    return node.matches(
+      '[data-testid*="tweetTextarea"], [contenteditable="true"], [role="textbox"], textarea, input'
+    );
+  }
+
+  function paintReplyComposer(primaryColumn) {
+    primaryColumn.querySelectorAll(`[${replyComposerAttribute}="true"]`).forEach((node) => {
+      node.removeAttribute(replyComposerAttribute);
+    });
+    if (primaryColumn.querySelector('[data-testid="dm-container"]')) return;
+
+    const columnRect = primaryColumn.getBoundingClientRect();
+    if (!columnRect.width || !columnRect.height) return;
+
+    const composerControl = Array.from(primaryColumn.querySelectorAll(
+      '[data-testid*="tweetTextarea"], [contenteditable="true"], [role="textbox"], ' +
+      'textarea, input'
+    )).find(isComposerControl);
+    if (!composerControl) return;
+
+    let current = composerControl;
+    let composer = null;
+    let fallback = null;
+    for (let depth = 0; current && current !== primaryColumn && depth < 10; depth += 1) {
+      const rect = current.getBoundingClientRect();
+      if (rect.width >= Math.max(280, columnRect.width * 0.68) &&
+          rect.height >= 80 && rect.height <= 420) {
+        fallback = current;
+        if (isOpaqueBlack(getComputedStyle(current).backgroundColor)) {
+          composer = current;
+          break;
+        }
+      }
+      current = current.parentElement;
+    }
+
+    composer = composer || fallback;
+    if (!composer) return;
+    composer.setAttribute(replyComposerAttribute, "true");
+  }
+
   function flattenTopBand(primaryColumn, columnRect, cutoff, topSection) {
     if (topSection) {
       topSection.setAttribute(topBandAttribute, "true");
@@ -219,6 +262,7 @@ private let xGlassChromeSuppressionScript = #"""
   function paintTopSurface() {
     const primaryColumn = document.querySelector('[data-testid="primaryColumn"]');
     if (!primaryColumn) return;
+    paintReplyComposer(primaryColumn);
     if (primaryColumn.querySelector('[data-testid="dm-container"]')) return;
 
     primaryColumn.querySelectorAll("[data-xglass-top-band=\"true\"]").forEach((node) => {
@@ -546,6 +590,61 @@ private let xGlassChromeSuppressionScript = #"""
           background-image: none !important;
           border-color: transparent !important;
           box-shadow: none !important;
+        }
+
+        [data-xglass-reply-composer="true"] {
+          background: linear-gradient(180deg, rgba(40, 111, 117, 0.38), rgba(24, 86, 95, 0.28)) !important;
+          background-image: linear-gradient(180deg, rgba(40, 111, 117, 0.38), rgba(24, 86, 95, 0.28)) !important;
+          border-top: 1px solid rgba(190, 235, 231, 0.12) !important;
+          border-bottom: 1px solid rgba(190, 235, 231, 0.12) !important;
+          border-radius: 0 !important;
+          box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04), inset 0 -1px 0 rgba(6, 42, 50, 0.12) !important;
+          color: rgba(245, 252, 251, 0.96) !important;
+        }
+
+        [data-xglass-reply-composer="true"] div,
+        [data-xglass-reply-composer="true"] section,
+        [data-xglass-reply-composer="true"] form,
+        [data-xglass-reply-composer="true"] [role="group"],
+        [data-xglass-reply-composer="true"] [role="textbox"],
+        [data-xglass-reply-composer="true"] [contenteditable="true"],
+        [data-xglass-reply-composer="true"] textarea,
+        [data-xglass-reply-composer="true"] input {
+          background: transparent !important;
+          background-image: none !important;
+          box-shadow: none !important;
+        }
+
+        [data-xglass-reply-composer="true"] [role="textbox"],
+        [data-xglass-reply-composer="true"] [contenteditable="true"],
+        [data-xglass-reply-composer="true"] [data-testid*="tweetTextarea"],
+        [data-xglass-reply-composer="true"] textarea,
+        [data-xglass-reply-composer="true"] input {
+          color: rgba(248, 252, 255, 0.98) !important;
+          caret-color: rgba(248, 252, 255, 0.98) !important;
+        }
+
+        [data-xglass-reply-composer="true"] [data-placeholder]::before,
+        [data-xglass-reply-composer="true"] [data-placeholder]::after,
+        [data-xglass-reply-composer="true"] [data-placeholder],
+        [data-xglass-reply-composer="true"] textarea::placeholder,
+        [data-xglass-reply-composer="true"] input::placeholder {
+          color: rgba(232, 247, 246, 0.78) !important;
+          opacity: 1 !important;
+        }
+
+        [data-xglass-reply-composer="true"] button *,
+        [data-xglass-reply-composer="true"] [role="button"] * {
+          color: inherit !important;
+          fill: currentColor !important;
+          stroke: currentColor !important;
+        }
+
+        [data-xglass-reply-composer="true"] button[data-testid*="tweetButton"],
+        [data-xglass-reply-composer="true"] [role="button"][data-testid*="tweetButton"] {
+          background: rgba(232, 247, 246, 0.16) !important;
+          border: 1px solid rgba(232, 247, 246, 0.14) !important;
+          border-radius: 999px !important;
         }
 
         [data-xglass-top-control="true"] {
