@@ -5,6 +5,16 @@ interface inspired by macOS glass materials. It uses X.com's normal WebKit
 session, so sign-in, two-factor authentication, and account controls remain
 handled by X.com rather than a separate API credential flow.
 
+## Preview
+
+<p align="center">
+  <img src="docs/media/xglass-app-icon.png" alt="XGlass app icon" width="180">
+</p>
+
+<p align="center">
+  <img src="docs/media/xglass-app-window.png" alt="XGlass macOS app window showing the X home feed" width="560">
+</p>
+
 ## Install
 
 Download the latest arm64 `.dmg` or `.zip` from the [GitHub Releases page](https://github.com/appleforever11/XGlass/releases), move `XGlass.app` to `/Applications`, and launch it. XGlass requires macOS 14 or later.
