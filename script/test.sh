@@ -23,13 +23,18 @@ swift build --product XGlass --configuration "$BUILD_CONFIGURATION"
 TEST_BUILD_PATH="$(mktemp -d "${TMPDIR:-/tmp}/XGlassTests.XXXXXX")"
 swift build --build-tests --configuration "$TEST_BUILD_CONFIGURATION" --build-path "$TEST_BUILD_PATH"
 
-# SwiftPM does not bundle binary package frameworks into an XCTest bundle.
-# Stage Sparkle beside the test product so the test runner can load XGlass.
-SPARKLE_FRAMEWORK="$TEST_BUILD_PATH/out/Products/${TEST_BUILD_CONFIGURATION^}/Sparkle.framework"
-TEST_FRAMEWORKS="$TEST_BUILD_PATH/out/Products/${TEST_BUILD_CONFIGURATION^}/PackageFrameworks"
-if [[ -d "$SPARKLE_FRAMEWORK" ]]; then
-    mkdir -p "$TEST_FRAMEWORKS"
-    cp -R "$SPARKLE_FRAMEWORK" "$TEST_FRAMEWORKS/"
+# Xcode-backed SwiftPM builds put binary frameworks beside an XCTest bundle,
+# whose generated rpath points at a PackageFrameworks directory. Native
+# SwiftPM builds keep Sparkle beside the test executable and need no staging.
+TEST_BUNDLE="$(find "$TEST_BUILD_PATH" -type d -name '*.xctest' -print -quit)"
+if [[ -n "$TEST_BUNDLE" ]]; then
+    TEST_PRODUCTS_DIR="$(dirname "$TEST_BUNDLE")"
+    SPARKLE_FRAMEWORK="$TEST_PRODUCTS_DIR/Sparkle.framework"
+    TEST_FRAMEWORKS="$TEST_PRODUCTS_DIR/PackageFrameworks"
+    if [[ -d "$SPARKLE_FRAMEWORK" ]]; then
+        mkdir -p "$TEST_FRAMEWORKS"
+        /usr/bin/ditto "$SPARKLE_FRAMEWORK" "$TEST_FRAMEWORKS/Sparkle.framework"
+    fi
 fi
 
 swift test --configuration "$TEST_BUILD_CONFIGURATION" --skip-build --parallel --build-path "$TEST_BUILD_PATH"

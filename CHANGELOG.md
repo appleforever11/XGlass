@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.1.2
+
+- Published the complete 1.1 refresh with portable release checks for both native SwiftPM and Xcode-backed macOS runners.
+
 ## 1.1.1
 
 - Published the complete 1.1 refresh with a release test path compatible with standard GitHub macOS runners.
