@@ -50,6 +50,13 @@ enum XRoute: String, CaseIterable, Identifiable {
         }
     }
 
+    var navigationPaths: [String] {
+        switch self {
+        case .messages: ["/i/chat", "/messages"]
+        default: [url.path]
+        }
+    }
+
     static func match(url: URL) -> XRoute? {
         let path = url.path.lowercased()
 

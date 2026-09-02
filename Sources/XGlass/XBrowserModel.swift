@@ -2,6 +2,7 @@ import AppKit
 import Combine
 import WebKit
 
+
 @MainActor
 final class XBrowserModel: NSObject, ObservableObject {
     @Published var canGoBack = false
@@ -12,12 +13,24 @@ final class XBrowserModel: NSObject, ObservableObject {
     @Published var currentURL = XRoute.home.url
     @Published var activeRoute = XRoute.home
     @Published var statusMessage: String?
+    @Published var canRetry = false
+    @Published var isRunningHealthCheck = false
+    @Published var healthReport: XInterfaceHealthReport?
 
-    private weak var webView: WKWebView?
+    weak var webView: WKWebView?
     private var observations: [NSKeyValueObservation] = []
     private var pendingNavigationID: UUID?
-    private var pendingNavigationRoute: XRoute?
+    var pendingNavigationRoute: XRoute?
     private var pendingNavigationTask: Task<Void, Never>?
+    var lastRequestedRoute: XRoute?
+    let imageSaver = XImageSaveCoordinator()
+
+    override init() {
+        super.init()
+        imageSaver.statusHandler = { [weak self] message in
+            self?.statusMessage = message
+        }
+    }
 
     deinit {
         pendingNavigationTask?.cancel()
@@ -32,32 +45,58 @@ final class XBrowserModel: NSObject, ObservableObject {
         webView.uiDelegate = self
         webView.allowsBackForwardNavigationGestures = true
         webView.allowsMagnification = true
+        if let xGlassWebView = webView as? XGlassWebView {
+            imageSaver.attach(to: xGlassWebView)
+        }
 
         observations = [
             webView.observe(\.canGoBack, options: [.initial, .new]) { [weak self] webView, _ in
-                Task { @MainActor in self?.canGoBack = webView.canGoBack }
+                Task { @MainActor in
+                    guard let self, self.canGoBack != webView.canGoBack else { return }
+                    self.canGoBack = webView.canGoBack
+                }
             },
             webView.observe(\.canGoForward, options: [.initial, .new]) { [weak self] webView, _ in
-                Task { @MainActor in self?.canGoForward = webView.canGoForward }
+                Task { @MainActor in
+                    guard let self, self.canGoForward != webView.canGoForward else { return }
+                    self.canGoForward = webView.canGoForward
+                }
             },
             webView.observe(\.isLoading, options: [.initial, .new]) { [weak self] webView, _ in
-                Task { @MainActor in self?.isLoading = webView.isLoading }
+                Task { @MainActor in
+                    guard let self, self.isLoading != webView.isLoading else { return }
+                    self.isLoading = webView.isLoading
+                }
             },
             webView.observe(\.estimatedProgress, options: [.initial, .new]) { [weak self] webView, _ in
-                Task { @MainActor in self?.estimatedProgress = webView.estimatedProgress }
+                Task { @MainActor in
+                    guard let self else { return }
+                    let progress = webView.estimatedProgress
+                    let isTerminalUpdate = progress <= 0.001 || progress >= 0.999
+                    guard isTerminalUpdate || abs(progress - self.estimatedProgress) >= 0.02 else { return }
+                    self.estimatedProgress = progress
+                }
             },
             webView.observe(\.title, options: [.initial, .new]) { [weak self] webView, _ in
-                Task { @MainActor in self?.title = webView.title ?? "X" }
+                Task { @MainActor in
+                    guard let self else { return }
+                    let title = webView.title ?? "X"
+                    guard self.title != title else { return }
+                    self.title = title
+                }
             },
             webView.observe(\.url, options: [.initial, .new]) { [weak self] webView, _ in
                 Task { @MainActor in
-                    if let url = webView.url {
-                        self?.currentURL = url
-                        if let route = XRoute.match(url: url) {
-                            self?.activeRoute = route
-                            if let self, self.pendingNavigationRoute == route {
-                                self.completeNavigation()
-                            }
+                    guard let self, let url = webView.url else { return }
+                    if self.currentURL != url {
+                        self.currentURL = url
+                    }
+                    if let route = XRoute.match(url: url) {
+                        if self.activeRoute != route {
+                            self.activeRoute = route
+                        }
+                        if self.pendingNavigationRoute == route {
+                            self.completeNavigation()
                         }
                     }
                 }
@@ -67,16 +106,31 @@ final class XBrowserModel: NSObject, ObservableObject {
 
     func loadInitialPageIfNeeded() {
         guard let webView, webView.url == nil else { return }
+        lastRequestedRoute = .home
         webView.load(URLRequest(url: XRoute.home.url))
     }
 
     func navigate(to url: URL) {
         cancelPendingNavigation()
-        webView?.load(URLRequest(url: url))
+        lastRequestedRoute = XRoute.match(url: url)
+        canRetry = false
+        statusMessage = nil
+        guard let webView else {
+            statusMessage = "XGlass is still starting the X web session."
+            canRetry = lastRequestedRoute != nil
+            return
+        }
+        webView.load(URLRequest(url: url))
     }
 
     func navigate(to route: XRoute) {
-        guard let webView else { return }
+        lastRequestedRoute = route
+        canRetry = false
+        guard let webView else {
+            statusMessage = "XGlass is still starting the X web session."
+            canRetry = true
+            return
+        }
 
         let navigationID = UUID()
         pendingNavigationID = navigationID
@@ -89,7 +143,7 @@ final class XBrowserModel: NSObject, ObservableObject {
             return
         }
 
-        let paths = route == .messages ? ["/i/chat", "/messages"] : [route.url.path]
+        let paths = route.navigationPaths
         let pathsJSON = paths.map { String(reflecting: $0) }.joined(separator: ", ")
         let script = """
         (() => {
@@ -135,14 +189,18 @@ final class XBrowserModel: NSObject, ObservableObject {
     }
 
     func goBack() {
+        canRetry = false
         webView?.goBack()
     }
 
     func goForward() {
+        canRetry = false
         webView?.goForward()
     }
 
     func reload() {
+        canRetry = false
+        statusMessage = nil
         webView?.reload()
     }
 
@@ -155,7 +213,13 @@ final class XBrowserModel: NSObject, ObservableObject {
     }
 
     func navigateToOwnProfile() {
-        guard let webView else { return }
+        lastRequestedRoute = .profile
+        canRetry = false
+        guard let webView else {
+            statusMessage = "XGlass is still starting the X web session."
+            canRetry = true
+            return
+        }
         let navigationID = UUID()
         pendingNavigationID = navigationID
         pendingNavigationRoute = .profile
@@ -235,12 +299,19 @@ final class XBrowserModel: NSObject, ObservableObject {
             self.pendingNavigationTask = nil
             self.pendingNavigationID = nil
             self.pendingNavigationRoute = nil
-            self.statusMessage = "X could not finish loading \(route.rawValue). Returned to Home."
-            if route != .home {
-                webView.load(URLRequest(url: XRoute.home.url))
-            }
+            self.statusMessage = "X could not finish loading \(route.rawValue)."
+            self.canRetry = true
         }
     }
+
+    func retryLastNavigation() {
+        guard let route = lastRequestedRoute else {
+            reload()
+            return
+        }
+        navigate(to: route)
+    }
+
 
     private func completeNavigation() {
         pendingNavigationTask?.cancel()
@@ -248,69 +319,13 @@ final class XBrowserModel: NSObject, ObservableObject {
         pendingNavigationID = nil
         pendingNavigationRoute = nil
         statusMessage = nil
+        canRetry = false
     }
 
-    private func cancelPendingNavigation() {
+    func cancelPendingNavigation() {
         pendingNavigationTask?.cancel()
         pendingNavigationTask = nil
         pendingNavigationID = nil
         pendingNavigationRoute = nil
-    }
-}
-
-extension XBrowserModel: WKNavigationDelegate {
-    func webView(_ webView: WKWebView, didFail navigation: WKNavigation!, withError error: Error) {
-        cancelPendingNavigation()
-        statusMessage = error.localizedDescription
-    }
-
-    func webView(_ webView: WKWebView, didFailProvisionalNavigation navigation: WKNavigation!, withError error: Error) {
-        cancelPendingNavigation()
-        statusMessage = error.localizedDescription
-    }
-
-    func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
-        statusMessage = nil
-    }
-
-    func webView(
-        _ webView: WKWebView,
-        decidePolicyFor navigationAction: WKNavigationAction,
-        decisionHandler: @escaping @MainActor @Sendable (WKNavigationActionPolicy) -> Void
-    ) {
-        guard let url = navigationAction.request.url else {
-            decisionHandler(.allow)
-            return
-        }
-
-        if isXWebURL(url) || navigationAction.targetFrame?.isMainFrame != true {
-            decisionHandler(.allow)
-            return
-        }
-
-        NSWorkspace.shared.open(url)
-        decisionHandler(.cancel)
-    }
-
-    private func isXWebURL(_ url: URL) -> Bool {
-        guard let host = url.host(percentEncoded: false)?.lowercased() else { return false }
-        return host == "x.com"
-            || host.hasSuffix(".x.com")
-            || host == "twitter.com"
-            || host.hasSuffix(".twitter.com")
-    }
-}
-
-extension XBrowserModel: WKUIDelegate {
-    func webView(
-        _ webView: WKWebView,
-        createWebViewWith configuration: WKWebViewConfiguration,
-        for navigationAction: WKNavigationAction,
-        windowFeatures: WKWindowFeatures
-    ) -> WKWebView? {
-        if navigationAction.targetFrame == nil {
-            webView.load(navigationAction.request)
-        }
-        return nil
     }
 }

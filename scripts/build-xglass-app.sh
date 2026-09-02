@@ -13,9 +13,13 @@ STAGED_CONTENTS_DIR="$STAGED_APP_DIR/Contents"
 STAGED_MACOS_DIR="$STAGED_CONTENTS_DIR/MacOS"
 STAGED_RESOURCES_DIR="$STAGED_CONTENTS_DIR/Resources"
 STAGED_FRAMEWORKS_DIR="$STAGED_CONTENTS_DIR/Frameworks"
+POST_COPY_VERIFY_ROOT=""
 
 cleanup() {
   rm -rf "$STAGING_ROOT"
+  if [[ -n "$POST_COPY_VERIFY_ROOT" ]]; then
+    rm -rf "$POST_COPY_VERIFY_ROOT"
+  fi
 }
 trap cleanup EXIT
 
@@ -94,5 +98,9 @@ codesign --verify --deep --strict "$STAGED_APP_DIR"
 
 rm -rf "$APP_DIR"
 ditto --norsrc --noextattr --noqtn "$STAGED_APP_DIR" "$APP_DIR"
+strip_bundle_metadata "$APP_DIR"
+POST_COPY_VERIFY_ROOT="$(mktemp -d "${TMPDIR:-/tmp}/xglass-post-copy-verify.XXXXXX")"
+ditto --norsrc --noextattr --noqtn "$APP_DIR" "$POST_COPY_VERIFY_ROOT/XGlass.app"
+codesign --verify --deep --strict "$POST_COPY_VERIFY_ROOT/XGlass.app"
 
 echo "$APP_DIR"

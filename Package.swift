@@ -18,6 +18,11 @@ let package = Package(
             ],
             path: "Sources/XGlass",
             exclude: ["Info.plist", "Resources"]
+        ),
+        .testTarget(
+            name: "XGlassTests",
+            dependencies: ["XGlass"],
+            path: "Tests/XGlassTests"
         )
     ]
 )

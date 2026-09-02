@@ -33,7 +33,7 @@ swift package resolve
 
 The build script stages the executable, icon, and `Sparkle.framework` updater
 helpers into a complete `.app` bundle. `./script/build_and_run.sh --verify`
-launches and verifies the local bundle. `./script/package_release.sh 1.0.0`
+launches and verifies the local bundle. `./script/package_release.sh 1.1.0`
 creates the Sparkle-compatible arm64 ZIP, and `./script/package_dmg.sh` creates
 the installable DMG.
 

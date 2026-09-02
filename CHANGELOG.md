@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.1.0
+
+- Rebuilt the native shell with responsive Liquid Glass navigation, browser controls, feed sizing, and deterministic startup placement.
+- Added a complete XGlass Settings experience with searchable theme previews, appearance controls, and release-safe defaults.
+- Split the WebKit presentation layer into focused, tested modules with bounded DOM scheduling and reduced redundant updates.
+- Improved navigation recovery, interface health reporting, direct-message readability, composer contrast, and promoted-post suppression.
+- Added native image save panels with collision-resistant filenames and hardened app-bundle packaging verification.
+
 ## 1.0.0
 
 - Initial public XGlass release.
