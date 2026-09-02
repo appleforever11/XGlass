@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.1.1
+
+- Published the complete 1.1 refresh with a release test path compatible with standard GitHub macOS runners.
+
 ## 1.1.0
 
 - Rebuilt the native shell with responsive Liquid Glass navigation, browser controls, feed sizing, and deterministic startup placement.

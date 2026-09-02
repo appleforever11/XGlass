@@ -8,11 +8,11 @@ TEST_BUILD_CONFIGURATION="${XGLASS_TEST_BUILD_CONFIGURATION:-debug}"
 cd "$ROOT_DIR"
 
 WEB_VIEW_SOURCE="$ROOT_DIR/Sources/XGlass/XWebView.swift"
-if rg -n 'new MutationObserver\(scheduleOverrides\)|setInterval\(' "$WEB_VIEW_SOURCE" >/dev/null; then
+if /usr/bin/grep -En 'new MutationObserver\(scheduleOverrides\)|setInterval\(' "$WEB_VIEW_SOURCE" >/dev/null; then
     echo "XGlass performance guard failed: unbounded DOM scheduling was reintroduced." >&2
     exit 1
 fi
-if ! rg -q 'minimumPaintInterval = 250' "$WEB_VIEW_SOURCE"; then
+if ! /usr/bin/grep -Eq 'minimumPaintInterval = 250' "$WEB_VIEW_SOURCE"; then
     echo "XGlass performance guard failed: bounded DOM scheduling is missing." >&2
     exit 1
 fi
