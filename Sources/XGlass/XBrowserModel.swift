@@ -5,6 +5,7 @@ import WebKit
 
 @MainActor
 final class XBrowserModel: NSObject, ObservableObject {
+    @Published var unreadState = XGlassUnreadState()
     @Published var canGoBack = false
     @Published var canGoForward = false
     @Published var isLoading = false
@@ -90,6 +91,7 @@ final class XBrowserModel: NSObject, ObservableObject {
                     guard let self, let url = webView.url else { return }
                     if self.currentURL != url {
                         self.currentURL = url
+                        webView.evaluateJavaScript("window.__xglassRefreshUnread?.()", completionHandler: nil)
                     }
                     if let route = XRoute.match(url: url) {
                         if self.activeRoute != route {
