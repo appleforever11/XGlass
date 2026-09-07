@@ -19,3 +19,9 @@ Live follow-up scenarios: repeat feed → post → back; rapidly switch destinat
 ## Live unread bell
 
 The native notification bell mirrors unread counts exposed by X's notification navigation badge. Page-title counts are not used because they may lag or include other surfaces. Counts above 99 display as `99+`; visible new-post prompts on Home without a count display a red dot. Hidden accessibility prompts and retained Home controls on other routes do not contribute. The accessibility label distinguishes unread updates from new posts. Updates are coalesced to one scan per 500 ms and only changed values cross the native bridge. The bridge reads the existing signed-in page, remains enabled in compatibility mode, and does not fetch a private API or mark items read. Clearing follows X's own signals. This requires XGlass to be running with its web session active; it is not an operating-system push subscription.
+
+### Late content and image downloads
+
+After the content deadline, bounded readiness observation continues for up to 60 probes in total. Late success dismisses the Slow warning without replacing the document. The user remains in control of reloads.
+
+Image saves use an ephemeral disk download, destination-scoped cookies (also on redirects), 30-second request / 120-second resource timeouts, image metadata validation, and atomic replacement of an approved existing file. Invalid responses leave the existing file intact. Successful saves retain the chosen directory. X image URLs with `format` query parameters use that format in the suggested filename.

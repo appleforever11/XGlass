@@ -39,13 +39,25 @@ if [[ -z "$SIGNING_IDENTITY" ]]; then
 fi
 SIGNING_IDENTITY="${SIGNING_IDENTITY:--}"
 
-swift package resolve
-swift build --product "$APP_NAME" --configuration "$BUILD_CONFIGURATION"
-BIN_PATH="$(swift build --show-bin-path --configuration "$BUILD_CONFIGURATION")"
+# Allow a local cache build when a file-provider checkout stalls SwiftPM.
+BUILD_OPTIONS=(build)
+PACKAGE_OPTIONS=(package)
+BUILD_ROOT="$ROOT_DIR/.build"
+if [[ -n "${XGLASS_SWIFT_BUILD_PATH:-}" ]]; then
+  BUILD_ROOT="$XGLASS_SWIFT_BUILD_PATH"
+  BUILD_OPTIONS+=(--scratch-path "$BUILD_ROOT")
+  PACKAGE_OPTIONS+=(--scratch-path "$BUILD_ROOT")
+fi
+if [[ -n "${XGLASS_SWIFT_BUILD_SYSTEM:-}" ]]; then
+  BUILD_OPTIONS+=(--build-system "$XGLASS_SWIFT_BUILD_SYSTEM")
+fi
+swift "${PACKAGE_OPTIONS[@]}" resolve
+swift "${BUILD_OPTIONS[@]}" --product "$APP_NAME" --configuration "$BUILD_CONFIGURATION"
+BIN_PATH="$(swift "${BUILD_OPTIONS[@]}" --show-bin-path --configuration "$BUILD_CONFIGURATION")"
 
-SPARKLE_FRAMEWORK="${SPARKLE_FRAMEWORK_PATH:-$ROOT_DIR/.build/artifacts/sparkle/Sparkle/Sparkle.xcframework/macos-arm64_x86_64/Sparkle.framework}"
+SPARKLE_FRAMEWORK="${SPARKLE_FRAMEWORK_PATH:-$BUILD_ROOT/artifacts/sparkle/Sparkle/Sparkle.xcframework/macos-arm64_x86_64/Sparkle.framework}"
 if [[ ! -d "$SPARKLE_FRAMEWORK" ]]; then
-  SPARKLE_FRAMEWORK="$(find "$ROOT_DIR/.build/artifacts/sparkle" -type d -path '*/Sparkle.framework' -print -quit 2>/dev/null || true)"
+  SPARKLE_FRAMEWORK="$(find "$BUILD_ROOT/artifacts/sparkle" -type d -path '*/Sparkle.framework' -print -quit 2>/dev/null || true)"
 fi
 if [[ ! -d "$SPARKLE_FRAMEWORK" ]]; then
   echo "Sparkle.framework was not found after dependency resolution." >&2

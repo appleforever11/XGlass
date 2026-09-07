@@ -6,6 +6,25 @@ final class XImageSaveCoordinator: NSObject, WKDownloadDelegate {
     var statusHandler: ((String) -> Void)?
 
     private weak var webView: WKWebView?
+    private var imageDownloadDestinations: [ObjectIdentifier: URL] = [:]
+    private static let imageDirectoryKey = "XGlass.lastImageSaveDirectory"
+
+    private var imageSaveDirectory: URL? {
+        let files = FileManager.default
+        let remembered = UserDefaults.standard.string(forKey: Self.imageDirectoryKey)
+            .map { URL(fileURLWithPath: $0, isDirectory: true) }
+        let photos = files.urls(for: .desktopDirectory, in: .userDomainMask).first?
+            .appendingPathComponent("X photos", isDirectory: true)
+        let downloads = files.urls(for: .downloadsDirectory, in: .userDomainMask).first
+        return [remembered, photos, downloads].compactMap { $0 }.first { url in
+            var isDirectory: ObjCBool = false
+            return files.fileExists(atPath: url.path, isDirectory: &isDirectory) && isDirectory.boolValue
+        }
+    }
+
+    private func rememberImageDirectory(for destination: URL) {
+        UserDefaults.standard.set(destination.deletingLastPathComponent().path, forKey: Self.imageDirectoryKey)
+    }
 
     func attach(to webView: XGlassWebView) {
         self.webView = webView
@@ -25,9 +44,11 @@ final class XImageSaveCoordinator: NSObject, WKDownloadDelegate {
         now: Date = Date(),
         uuid: UUID = UUID()
     ) -> String {
-        let fileExtension = imageURL.pathExtension.isEmpty
-            ? "jpg"
-            : imageURL.pathExtension.lowercased()
+        let queryFormat = URLComponents(url: imageURL, resolvingAgainstBaseURL: false)?
+            .queryItems?.first { $0.name == "format" }?.value?.lowercased()
+        let supported = ["jpg", "jpeg", "png", "gif", "webp", "heic", "avif", "tiff"]
+        let candidate = queryFormat ?? imageURL.pathExtension.lowercased()
+        let fileExtension = supported.contains(candidate) ? candidate : "jpg"
         let formatter = DateFormatter()
         formatter.locale = Locale(identifier: "en_US_POSIX")
         formatter.dateFormat = "yyyyMMdd-HHmmss-SSS"
@@ -74,10 +95,7 @@ final class XImageSaveCoordinator: NSObject, WKDownloadDelegate {
         panel.title = "Save Image"
         panel.prompt = "Save"
         panel.canCreateDirectories = true
-        panel.directoryURL = FileManager.default.urls(
-            for: .downloadsDirectory,
-            in: .userDomainMask
-        ).first
+        panel.directoryURL = imageSaveDirectory
         panel.nameFieldStringValue = Self.defaultFilename(for: imageURL)
 
         let save: (NSApplication.ModalResponse) -> Void = { [weak self, weak webView] response in
@@ -95,49 +113,20 @@ final class XImageSaveCoordinator: NSObject, WKDownloadDelegate {
 
     private func fetchImage(_ imageURL: URL, to destinationURL: URL, using webView: XGlassWebView) {
         let cookieStore = webView.configuration.websiteDataStore.httpCookieStore
-        let referer = webView.url?.absoluteString ?? XRoute.home.url.absoluteString
         let userAgent = webView.customUserAgent
-
+        statusHandler?("Saving image…")
         cookieStore.getAllCookies { [weak self] cookies in
-            var request = URLRequest(url: imageURL)
-            request.setValue(referer, forHTTPHeaderField: "Referer")
-            if let userAgent {
-                request.setValue(userAgent, forHTTPHeaderField: "User-Agent")
-            }
-            let cookieHeader = cookies.map { "\($0.name)=\($0.value)" }.joined(separator: "; ")
-            if !cookieHeader.isEmpty {
-                request.setValue(cookieHeader, forHTTPHeaderField: "Cookie")
-            }
-
-            URLSession.shared.dataTask(with: request) { data, response, error in
-                let result: Result<Void, Error>
-                if let error {
-                    result = .failure(error)
-                } else if let httpResponse = response as? HTTPURLResponse,
-                          !(200..<300).contains(httpResponse.statusCode) {
-                    result = .failure(URLError(.badServerResponse))
-                } else if let data {
-                    do {
-                        try data.write(to: destinationURL, options: .atomic)
-                        result = .success(())
-                    } catch {
-                        result = .failure(error)
-                    }
-                } else {
-                    result = .failure(URLError(.zeroByteResource))
-                }
-
-                let message: String
-                switch result {
-                case .success:
-                    message = "Image saved to \(destinationURL.lastPathComponent)."
-                case .failure(let error):
-                    message = "XGlass could not save the image: \(error.localizedDescription)"
-                }
+            XGlassImageDownload(cookies: cookies).save(imageURL, to: destinationURL, userAgent: userAgent) { result in
                 Task { @MainActor in
-                    self?.statusHandler?(message)
+                    switch result {
+                    case .success:
+                        self?.rememberImageDirectory(for: destinationURL)
+                        self?.statusHandler?("Image saved to \(destinationURL.lastPathComponent).")
+                    case .failure(let error):
+                        self?.statusHandler?("XGlass could not save the image: \(error.localizedDescription)")
+                    }
                 }
-            }.resume()
+            }
         }
     }
 
@@ -162,18 +151,31 @@ final class XImageSaveCoordinator: NSObject, WKDownloadDelegate {
         panel.prompt = "Save"
         panel.canCreateDirectories = true
         panel.nameFieldStringValue = filename
-        panel.directoryURL = FileManager.default.urls(
-            for: .downloadsDirectory,
-            in: .userDomainMask
+        panel.directoryURL = isImage ? imageSaveDirectory : FileManager.default.urls(
+            for: .downloadsDirectory, in: .userDomainMask
         ).first
 
+        let finish: @MainActor (NSApplication.ModalResponse) -> Void = { [weak self] response in
+            let destination = response == .OK ? panel.url : nil
+            if isImage, let destination {
+                self?.imageDownloadDestinations[ObjectIdentifier(download)] = destination
+            }
+            completionHandler(destination)
+        }
         guard let window = webView?.window else {
-            completionHandler(panel.runModal() == .OK ? panel.url : nil)
+            finish(panel.runModal())
             return
         }
+        panel.beginSheetModal(for: window, completionHandler: finish)
+    }
 
-        panel.beginSheetModal(for: window) { response in
-            completionHandler(response == .OK ? panel.url : nil)
+    func downloadDidFinish(_ download: WKDownload) {
+        if let destination = imageDownloadDestinations.removeValue(forKey: ObjectIdentifier(download)) {
+            rememberImageDirectory(for: destination)
         }
+    }
+
+    func download(_ download: WKDownload, didFailWithError error: Error, resumeData: Data?) {
+        imageDownloadDestinations.removeValue(forKey: ObjectIdentifier(download))
     }
 }

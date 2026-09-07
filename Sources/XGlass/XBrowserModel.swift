@@ -1,10 +1,15 @@
 import AppKit
 import Combine
 import WebKit
+import Network
 
 
 @MainActor
 final class XBrowserModel: NSObject, ObservableObject {
+    @Published var showsFindBar = false
+    @Published var findQuery = ""
+    @Published var findMatch: Bool?
+    var findGeneration = UUID()
     @Published var unreadState = XGlassUnreadState()
     @Published var canGoBack = false
     @Published var canGoForward = false
@@ -25,6 +30,21 @@ final class XBrowserModel: NSObject, ObservableObject {
     private var pendingNavigationTask: Task<Void, Never>?
     var lastRequestedRoute: XRoute?
     let imageSaver = XImageSaveCoordinator()
+    let loadWatchdog = XGlassLoadWatchdog()
+    @Published var loadState = "Starting"
+    @Published var compatibilityMode = false
+    var requestedURL: URL?
+    var recoveryAttempts = 0
+    var hasUnsavedDraft: Bool?
+    var draftCheckID: UUID?
+    var healthCheckID: UUID?
+    var loadStartedAt = Date()
+    var diagnosticEvents: [String] = []
+    let networkMonitor = NWPathMonitor()
+    var networkAvailable = true
+    var loadGeneration = UUID()
+    var readinessTask: Task<Void, Never>?
+    var lifecycleObservers: [NSObjectProtocol] = []
 
     override init() {
         super.init()
@@ -44,6 +64,7 @@ final class XBrowserModel: NSObject, ObservableObject {
         self.webView = webView
         webView.navigationDelegate = self
         webView.uiDelegate = self
+        installLifecycleMonitoring()
         webView.allowsBackForwardNavigationGestures = true
         webView.allowsMagnification = true
         if let xGlassWebView = webView as? XGlassWebView {
@@ -92,6 +113,9 @@ final class XBrowserModel: NSObject, ObservableObject {
                     if self.currentURL != url {
                         self.currentURL = url
                         webView.evaluateJavaScript("window.__xglassRefreshUnread?.()", completionHandler: nil)
+                        self.requestedURL = url
+                        self.recoveryAttempts = 0
+                        self.monitorPageReadiness(in: webView)
                     }
                     if let route = XRoute.match(url: url) {
                         if self.activeRoute != route {
@@ -122,10 +146,12 @@ final class XBrowserModel: NSObject, ObservableObject {
             canRetry = lastRequestedRoute != nil
             return
         }
+        requestedURL = url
         webView.load(URLRequest(url: url))
     }
 
     func navigate(to route: XRoute) {
+        loadWatchdog.cancel()
         lastRequestedRoute = route
         canRetry = false
         guard let webView else {
@@ -139,6 +165,13 @@ final class XBrowserModel: NSObject, ObservableObject {
         pendingNavigationRoute = route
         pendingNavigationTask?.cancel()
         statusMessage = nil
+
+        monitorPageReadiness(in: webView)
+
+        if route == .lists {
+            navigateToOwnLists(using: webView, navigationID: navigationID)
+            return
+        }
 
         if route == .profile {
             navigateToOwnProfile(using: webView, navigationID: navigationID)
@@ -175,8 +208,7 @@ final class XBrowserModel: NSObject, ObservableObject {
                     self.watchNavigation(
                         id: navigationID,
                         route: route,
-                        webView: webView,
-                        allowDirectRetry: false
+                        webView: webView
                     )
                 }
             }
@@ -185,29 +217,42 @@ final class XBrowserModel: NSObject, ObservableObject {
         watchNavigation(
             id: navigationID,
             route: route,
-            webView: webView,
-            allowDirectRetry: true
+            webView: webView
         )
     }
 
     func goBack() {
+        cancelPendingNavigation()
+        statusMessage = nil
         canRetry = false
         webView?.goBack()
     }
 
     func goForward() {
+        cancelPendingNavigation()
+        statusMessage = nil
         canRetry = false
         webView?.goForward()
     }
 
     func reload() {
+        cancelPendingNavigation()
         canRetry = false
         statusMessage = nil
-        webView?.reload()
+        guard let webView else { return }
+        protectDraft(in: webView) { [weak webView] in webView?.reload() }
     }
 
     func stopLoading() {
+        cancelPendingNavigation()
+        loadWatchdog.cancel()
         webView?.stopLoading()
+    }
+
+    func copyCurrentPageLink() {
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(currentURL.absoluteString, forType: .string)
+        statusMessage = "Page link copied"
     }
 
     func openCurrentPageInBrowser() {
@@ -215,6 +260,7 @@ final class XBrowserModel: NSObject, ObservableObject {
     }
 
     func navigateToOwnProfile() {
+        loadWatchdog.cancel()
         lastRequestedRoute = .profile
         canRetry = false
         guard let webView else {
@@ -227,7 +273,37 @@ final class XBrowserModel: NSObject, ObservableObject {
         pendingNavigationRoute = .profile
         pendingNavigationTask?.cancel()
         statusMessage = nil
+        monitorPageReadiness(in: webView)
         navigateToOwnProfile(using: webView, navigationID: navigationID)
+    }
+
+    private func navigateToOwnLists(using webView: WKWebView, navigationID: UUID) {
+        let script = """
+        (() => {
+          const profile = document.querySelector('a[data-testid="AppTabBar_Profile_Link"]');
+          if (!profile) return null;
+          const url = new URL(profile.href, window.location.origin);
+          url.pathname = url.pathname.replace(/\\/$/, '') + '/lists';
+          url.search = '';
+          url.hash = '';
+          return url.href;
+        })();
+        """
+        webView.evaluateJavaScript(script) { [weak self, webView] result, _ in
+            Task { @MainActor in
+                guard let self, self.webView === webView,
+                      self.pendingNavigationID == navigationID else { return }
+                guard let value = result as? String, let url = URL(string: value),
+                      url.host == "x.com", XRoute.match(url: url) == .lists else {
+                    self.cancelPendingNavigation()
+                    self.statusMessage = "Your Lists link is not available. Open Home and try again."
+                    self.canRetry = true
+                    return
+                }
+                webView.load(URLRequest(url: url))
+                self.watchNavigation(id: navigationID, route: .lists, webView: webView)
+            }
+        }
     }
 
     private func navigateToOwnProfile(using webView: WKWebView, navigationID: UUID) {
@@ -235,8 +311,7 @@ final class XBrowserModel: NSObject, ObservableObject {
         watchNavigation(
             id: navigationID,
             route: .profile,
-            webView: webView,
-            allowDirectRetry: false
+            webView: webView
         )
 
         let script = """
@@ -276,8 +351,7 @@ final class XBrowserModel: NSObject, ObservableObject {
     private func watchNavigation(
         id: UUID,
         route: XRoute,
-        webView: WKWebView,
-        allowDirectRetry: Bool
+        webView: WKWebView
     ) {
         pendingNavigationTask?.cancel()
         pendingNavigationTask = Task { @MainActor [weak self, webView] in
@@ -286,14 +360,8 @@ final class XBrowserModel: NSObject, ObservableObject {
                   self.pendingNavigationID == id,
                   self.webView === webView else { return }
 
-            if allowDirectRetry {
-                webView.load(URLRequest(url: route.url))
-                self.watchNavigation(
-                    id: id,
-                    route: route,
-                    webView: webView,
-                    allowDirectRetry: false
-                )
+            if let url = webView.url, XRoute.match(url: url) == route {
+                self.completeNavigation()
                 return
             }
 
@@ -301,17 +369,20 @@ final class XBrowserModel: NSObject, ObservableObject {
             self.pendingNavigationTask = nil
             self.pendingNavigationID = nil
             self.pendingNavigationRoute = nil
-            self.statusMessage = "X could not finish loading \(route.rawValue)."
+            self.statusMessage = "X could not finish loading \(route.rawValue). Retry when you are ready."
             self.canRetry = true
         }
     }
 
     func retryLastNavigation() {
-        guard let route = lastRequestedRoute else {
-            reload()
-            return
+        guard let webView else { return }
+        protectDraft(in: webView) { [weak self, weak webView] in
+            guard let self, let webView else { return }
+            self.recoveryAttempts = 0
+            self.statusMessage = nil
+            self.canRetry = false
+            webView.load(URLRequest(url: self.requestedURL ?? self.currentURL))
         }
-        navigate(to: route)
     }
 
 
@@ -325,6 +396,9 @@ final class XBrowserModel: NSObject, ObservableObject {
     }
 
     func cancelPendingNavigation() {
+        loadGeneration = UUID()
+        readinessTask?.cancel()
+        loadWatchdog.cancel()
         pendingNavigationTask?.cancel()
         pendingNavigationTask = nil
         pendingNavigationID = nil

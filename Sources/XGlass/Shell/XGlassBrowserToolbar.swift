@@ -2,92 +2,84 @@ import SwiftUI
 
 struct XGlassBrowserToolbar: View {
     @ObservedObject var browser: XBrowserModel
-    let colors: XGlassThemeColors
-    let glassIntensity: Double
+    @ObservedObject var settings: XGlassSettingsStore
+    @EnvironmentObject private var workspace: XGlassWorkspaceState
     let isCompact: Bool
 
+    private var colors: XGlassThemeColors { settings.colors }
     private var displayTitle: String {
-        browser.title.replacingOccurrences(
-            of: #"^\(\d+\)\s*"#,
-            with: "",
-            options: .regularExpression
-        )
+        browser.title.replacingOccurrences(of: #"^\(\d+\)\s*"#, with: "", options: .regularExpression)
+            .replacingOccurrences(of: " / X", with: "")
     }
 
     var body: some View {
-        HStack(spacing: isCompact ? 6 : 10) {
-            HStack(spacing: 2) {
-                XGlassToolbarButton(
-                    title: "Back",
-                    systemImage: "chevron.left",
-                    colors: colors,
-                    isEnabled: browser.canGoBack,
-                    action: browser.goBack
-                )
-                XGlassToolbarButton(
-                    title: "Forward",
-                    systemImage: "chevron.right",
-                    colors: colors,
-                    isEnabled: browser.canGoForward,
-                    action: browser.goForward
-                )
-                XGlassToolbarButton(
-                    title: browser.isLoading ? "Stop" : "Reload",
-                    systemImage: browser.isLoading ? "xmark" : "arrow.clockwise",
-                    colors: colors,
-                    action: browser.isLoading ? browser.stopLoading : browser.reload
-                )
+        HStack(spacing: 4) {
+            XGlassToolbarButton(title: "Back", systemImage: "chevron.left", colors: colors, isEnabled: browser.canGoBack, action: browser.goBack)
+            XGlassToolbarButton(title: "Forward", systemImage: "chevron.right", colors: colors, isEnabled: browser.canGoForward, action: browser.goForward)
+            XGlassToolbarButton(title: browser.isLoading ? "Stop" : "Reload", systemImage: browser.isLoading ? "xmark" : "arrow.clockwise", colors: colors, action: browser.isLoading ? browser.stopLoading : browser.reload)
+            Text(displayTitle)
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundStyle(colors.text)
+                .lineLimit(1)
+                .padding(.leading, 8)
+                .accessibilityLabel("Current page, \(displayTitle)")
+            if browser.loadState == "Loading" && !browser.isLoading {
+                ProgressView().controlSize(.small)
+                    .help("Waiting for X to show page content")
+                    .accessibilityLabel("Loading page content")
             }
-
-            Spacer(minLength: 4)
-
-            HStack(spacing: 7) {
-                Image(systemName: browser.activeRoute.systemImage)
-                    .font(.system(size: 11, weight: .semibold))
-                    .foregroundStyle(colors.accent)
-
-                Text(displayTitle)
-                    .font(.system(size: 13, weight: .semibold))
-                    .lineLimit(1)
-                    .foregroundStyle(colors.text)
+            Spacer(minLength: 8)
+            if workspace.isFocused {
+                XGlassToolbarButton(title: "Exit Focus Mode", systemImage: "sidebar.leading", colors: colors) {
+                    workspace.isFocused = false
+                }
             }
-            .accessibilityElement(children: .combine)
-            .accessibilityLabel("Current page, \(displayTitle)")
-
-            Spacer(minLength: 4)
-
+            XGlassToolbarButton(title: "Quick Switcher", systemImage: "magnifyingglass", colors: colors) {
+                workspace.showsQuickSwitcher = true
+            }
             if !isCompact {
-                Text(browser.currentURL.host() ?? "x.com")
-                    .font(.system(size: 10, weight: .medium))
-                    .foregroundStyle(colors.secondaryText)
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 4)
-                    .background(colors.card.opacity(0.36), in: Capsule())
-                    .overlay(Capsule().stroke(colors.stroke.opacity(0.72), lineWidth: 1))
+                XGlassToolbarButton(title: "Copy Page Link", systemImage: "link", colors: colors, action: browser.copyCurrentPageLink)
             }
-
-            XGlassToolbarButton(
-                title: "Open in Browser",
-                systemImage: "safari",
-                colors: colors,
-                action: browser.openCurrentPageInBrowser
-            )
+            Menu {
+                Button("Open in Browser", systemImage: "safari", action: browser.openCurrentPageInBrowser)
+                Button("Find in Page", systemImage: "doc.text.magnifyingglass") { browser.showsFindBar = true }
+                Button("Copy Page Link", systemImage: "link", action: browser.copyCurrentPageLink)
+                Divider()
+                Toggle("Focus Mode", isOn: $workspace.isFocused)
+                Menu("Feed Width") {
+                    Picker("Feed Width", selection: Binding(get: { settings.feedWidth }, set: settings.setFeedWidth)) {
+                        ForEach(XGlassFeedWidth.allCases) { Text($0.title).tag($0) }
+                    }
+                }
+                Menu("Page Size") {
+                    ForEach([80, 90, 100, 110, 120, 130, 140], id: \.self) { value in
+                        Button("\(value)%", systemImage: Int((settings.pageZoom * 100).rounded()) == value ? "checkmark" : "textformat.size") {
+                            settings.setPageZoom(Double(value) / 100)
+                        }
+                    }
+                }
+                Divider()
+                SettingsLink { Label("XGlass Settings...", systemImage: "gearshape") }
+                Button("X Account Settings", systemImage: "person.crop.circle") { browser.navigate(to: .settings) }
+            } label: {
+                Image(systemName: "ellipsis").frame(width: 30, height: 30)
+            }
+            .menuStyle(.borderlessButton)
+            .menuIndicator(.hidden)
+            .fixedSize()
+            .help("Page Options")
+            .accessibilityLabel("Page Options")
         }
         .padding(.horizontal, 12)
-        .frame(height: 50)
-        .background(.ultraThinMaterial)
-        .background(colors.card.opacity(0.24 * glassIntensity))
+        .frame(height: 52)
+        .background(colors.window.opacity(0.44))
         .overlay(alignment: .bottomLeading) {
             if browser.isLoading {
                 GeometryReader { proxy in
-                    Capsule()
+                    Rectangle()
                         .fill(colors.accent)
-                        .frame(
-                            width: min(proxy.size.width, max(24, proxy.size.width * browser.estimatedProgress)),
-                            height: 2
-                        )
-                        .frame(maxHeight: .infinity, alignment: .bottomLeading)
-                        .animation(.easeOut(duration: 0.15), value: browser.estimatedProgress)
+                        .frame(width: max(24, proxy.size.width * browser.estimatedProgress), height: 2)
+                        .frame(maxHeight: .infinity, alignment: .bottom)
                 }
                 .accessibilityHidden(true)
             }
@@ -101,27 +93,19 @@ struct XGlassToolbarButton: View {
     let colors: XGlassThemeColors
     var isEnabled = true
     let action: () -> Void
-
     @State private var isHovering = false
 
     var body: some View {
         Button(action: action) {
             Image(systemName: systemImage)
-                .font(.system(size: 12, weight: .semibold))
-                .frame(width: 28, height: 28)
+                .font(.system(size: 13, weight: .medium))
+                .frame(width: 30, height: 30)
                 .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
         .disabled(!isEnabled)
         .foregroundStyle(isEnabled ? colors.text : colors.secondaryText.opacity(0.42))
-        .background {
-            RoundedRectangle(cornerRadius: 7, style: .continuous)
-                .fill(isHovering && isEnabled ? colors.accent.opacity(0.12) : .clear)
-        }
-        .overlay {
-            RoundedRectangle(cornerRadius: 7, style: .continuous)
-                .stroke(isHovering && isEnabled ? colors.stroke.opacity(0.85) : .clear, lineWidth: 1)
-        }
+        .background(isHovering && isEnabled ? colors.selected.opacity(0.65) : .clear, in: RoundedRectangle(cornerRadius: 8))
         .onHover { isHovering = $0 }
         .help(title)
         .accessibilityLabel(title)
