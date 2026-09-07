@@ -1,5 +1,9 @@
 # XGlass handoff
 
+## 2026-09-07 — Preserve running development sessions
+
+Build and packaging now preserve the active development instance instead of killing every XGlass process. Modes are validated before work; the packager checks again before replacing the bundle. A real build-only attempt was rejected while the running XGlass instance remained intact. Signed-process fixtures cover literal paths, arguments and symlink aliases. Existing source and status edits remain preserved.
+
 Updated 2026-09-05 by the Codex workspace audit.
 
 Existing work covers WebKit loading/recovery, workspace restoration, unread indicators, settings, and theme components. The pre-existing diff is retained and separately checkpointed. The active source is this directory; `/Users/kevinhowe/Codex Projects Restored/XGlass` is the older reference copy.
