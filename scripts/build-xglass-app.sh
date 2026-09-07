@@ -4,6 +4,8 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 APP_NAME="XGlass"
 APP_DIR="$ROOT_DIR/dist/$APP_NAME.app"
+source "$ROOT_DIR/script/app_instance.sh"
+require_app_stopped "$APP_DIR/Contents/MacOS/$APP_NAME"
 SOURCE_ICON="$ROOT_DIR/Sources/XGlass/Resources/XGlass.icns"
 BUILD_CONFIGURATION="${XGLASS_BUILD_CONFIGURATION:-debug}"
 SIGNING_IDENTITY="${XGLASS_SIGNING_IDENTITY:-${SIGNING_IDENTITY:-}}"
@@ -108,6 +110,7 @@ fi
 strip_bundle_metadata "$STAGED_APP_DIR"
 codesign --verify --deep --strict "$STAGED_APP_DIR"
 
+require_app_stopped "$APP_DIR/Contents/MacOS/$APP_NAME"
 rm -rf "$APP_DIR"
 ditto --norsrc --noextattr --noqtn "$STAGED_APP_DIR" "$APP_DIR"
 strip_bundle_metadata "$APP_DIR"

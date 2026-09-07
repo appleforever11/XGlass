@@ -2,6 +2,7 @@
 set -euo pipefail
 
 MODE="${1:-run}"
+case "$MODE" in build|--build|run|--debug|debug|--logs|logs|--telemetry|telemetry|--verify|verify) ;; *) echo 'Unknown launch mode.' >&2; exit 2 ;; esac
 APP_NAME="XGlass"
 BUNDLE_ID="com.kevinhowe.XGlass"
 BUILD_CONFIGURATION="${XGLASS_BUILD_CONFIGURATION:-debug}"
@@ -9,14 +10,16 @@ SIGNING_IDENTITY="${XGLASS_SIGNING_IDENTITY:-}"
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 APP_BUNDLE="$ROOT_DIR/dist/$APP_NAME.app"
 APP_BINARY="$APP_BUNDLE/Contents/MacOS/$APP_NAME"
+source "$ROOT_DIR/script/app_instance.sh"
 
 cd "$ROOT_DIR"
 
 kill_existing() {
-  pkill -x "$APP_NAME" >/dev/null 2>&1 || true
+  require_app_stopped "$APP_BINARY"
 }
 
 build_app() {
+  require_app_stopped "$APP_BINARY"
   XGLASS_BUILD_CONFIGURATION="$BUILD_CONFIGURATION" \
     XGLASS_SIGNING_IDENTITY="$SIGNING_IDENTITY" \
     "$ROOT_DIR/scripts/build-xglass-app.sh"
@@ -65,7 +68,7 @@ case "$MODE" in
     build_app
     open_app
     sleep 2
-    pgrep -x "$APP_NAME" >/dev/null
+    [[ -n "$(app_instance_pids "$APP_BINARY")" ]]
     verify_bundle
     echo "$APP_NAME is running and the signed bundle verified"
     ;;
