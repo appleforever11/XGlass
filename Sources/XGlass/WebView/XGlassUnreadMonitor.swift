@@ -6,7 +6,7 @@ final class XGlassUnreadMonitor: NSObject, WKScriptMessageHandler {
     init(browser: XBrowserModel) { self.browser = browser }
 
     func userContentController(_ userContentController: WKUserContentController, didReceive message: WKScriptMessage) {
-        guard message.frameInfo.isMainFrame,
+        guard message.frameInfo.isMainFrame, message.webView === browser?.webView,
               let host = message.frameInfo.request.url?.host,
               host == "x.com" || host.hasSuffix(".x.com") || host == "twitter.com" || host.hasSuffix(".twitter.com"),
               let json = message.body as? String, let data = json.data(using: .utf8),
@@ -26,7 +26,7 @@ final class XGlassUnreadMonitor: NSObject, WKScriptMessageHandler {
       function publish() {
         timer = 0;
         const link = document.querySelector(navSelector);
-        if (!link && !location.pathname.startsWith('/i/flow/login') && !document.querySelector('input[type="password"]')) return;
+        if (!link && !location.pathname.startsWith('/i/flow/login') && !document.querySelector('input[type="password"], input[autocomplete="username"]')) return;
         const labels = link ? [link.getAttribute('aria-label') || '',
           ...Array.from(link.querySelectorAll('[aria-label]'), n => n.getAttribute('aria-label') || '')] : [];
         const text = labels.join(' ');

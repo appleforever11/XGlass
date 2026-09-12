@@ -35,6 +35,23 @@ extension XBrowserModel {
         }
     }
 
+    func restartWebSession() {
+        guard let webView else { return }
+        protectDraft(in: webView) { [weak self, weak webView] in
+            guard let self else { return }
+            self.cancelPendingNavigation()
+            self.requestedURL = self.requestedURL ?? self.currentURL
+            webView?.stopLoading()
+            webView?.navigationDelegate = nil
+            webView?.uiDelegate = nil
+            self.webView = nil
+            self.unreadState = XGlassUnreadState()
+            self.findMatch = nil
+            self.recordLoadEvent("User restarted web view; existing data store retained")
+            self.webViewID = UUID()
+        }
+    }
+
     static func recoveryRequest(for url: URL) -> URLRequest {
         URLRequest(url: url, cachePolicy: .reloadIgnoringLocalCacheData, timeoutInterval: 30)
     }

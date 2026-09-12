@@ -53,14 +53,17 @@ enum XRoute: String, CaseIterable, Identifiable {
     var navigationPaths: [String] {
         switch self {
         case .messages: ["/i/chat", "/messages"]
+        case .home: ["/home", "/"]
         default: [url.path]
         }
     }
 
     static func match(url: URL) -> XRoute? {
+        guard let host = url.host?.lowercased(), ["x.com", "www.x.com", "twitter.com", "www.twitter.com"].contains(host) else { return nil }
         let path = url.path.lowercased()
+        if path.split(separator: "/").contains("status") { return nil }
 
-        if path.hasPrefix("/explore") {
+        if path.hasPrefix("/explore") || path == "/search" {
             return .explore
         }
         if path.hasPrefix("/notifications") {
@@ -72,7 +75,8 @@ enum XRoute: String, CaseIterable, Identifiable {
         if path.hasPrefix("/i/bookmarks") {
             return .bookmarks
         }
-        if path.hasPrefix("/i/lists") {
+        if path.hasPrefix("/i/lists") ||
+            (path.split(separator: "/").count == 2 && path.hasSuffix("/lists")) {
             return .lists
         }
         if path.hasPrefix("/settings") {
@@ -110,6 +114,7 @@ enum XRoute: String, CaseIterable, Identifiable {
 
         let components = path.split(separator: "/").map(String.init)
         guard let first = components.first, !first.isEmpty else { return false }
-        return first != "intent"
+        guard first != "intent", first.range(of: "^[a-z0-9_]{1,15}$", options: .regularExpression) != nil else { return false }
+        return components.count == 1 || (components.count == 2 && ["with_replies", "media", "likes", "highlights", "articles"].contains(components[1]))
     }
 }

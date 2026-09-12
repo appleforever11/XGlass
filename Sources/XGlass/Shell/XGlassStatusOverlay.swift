@@ -26,6 +26,8 @@ struct XGlassStatusOverlay: View {
                         Button("Open in Browser", action: browser.openCurrentPageInBrowser)
                             .buttonStyle(.bordered)
                     }.controlSize(.small)
+                    Button("Restart Web Session", action: browser.restartWebSession)
+                        .controlSize(.small)
                     if !browser.compatibilityMode {
                         Button("Retry with Standard Appearance", action: browser.retryWithStandardAppearance)
                             .controlSize(.small)

@@ -12,7 +12,7 @@ final class XGlassRouteTests: XCTestCase {
         XCTAssertEqual(XRoute.match(url: URL(string: "https://x.com/i/lists/123")!), .lists)
         XCTAssertEqual(XRoute.match(url: URL(string: "https://x.com/settings/account")!), .settings)
         XCTAssertEqual(XRoute.match(url: URL(string: "https://x.com/compose/post")!), .compose)
-        XCTAssertEqual(XRoute.match(url: URL(string: "https://x.com/appleforever11/status/123")!), .profile)
+        XCTAssertNil(XRoute.match(url: URL(string: "https://x.com/appleforever11/status/123")!))
     }
 
     func testMessagesRetainsBothKnownXPaths() {

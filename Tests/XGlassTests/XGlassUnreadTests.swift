@@ -67,6 +67,23 @@ final class XGlassUnreadTests: XCTestCase {
         XCTAssertFalse(recorder.latest.isVisible)
     }
 
+    func testUnreadCycleAcrossPageShowAndNewDocuments() async throws {
+        let config = WKWebViewConfiguration()
+        config.websiteDataStore = .nonPersistent()
+        let recorder = Recorder()
+        config.userContentController.add(recorder, name: "xglassUnread")
+        config.userContentController.addUserScript(WKUserScript(source: XGlassUnreadMonitor.source, injectionTime: .atDocumentStart, forMainFrameOnly: true))
+        let view = WKWebView(frame: NSRect(x: 0, y: 0, width: 600, height: 600), configuration: config)
+        for count in [3, 0, 2, 0] {
+            view.loadHTMLString("<html><body><a href='/notifications' aria-label='Notifications, \(count) unread items'></a><main></main></body></html>", baseURL: URL(string: "https://x.com/notifications"))
+            try await Task.sleep(for: .seconds(1))
+            try await run("window.dispatchEvent(new Event('pageshow')); document.dispatchEvent(new Event('visibilitychange'));", in: view)
+            try await Task.sleep(for: .milliseconds(600))
+            XCTAssertEqual(recorder.latest.count, count)
+            XCTAssertEqual(recorder.latest.isVisible, count > 0)
+        }
+    }
+
     func testBadgeCapsLargeCountsAndExplainsDots() {
         XCTAssertEqual(XGlassUnreadState(count: 125).badgeText, "99+")
         XCTAssertNil(XGlassUnreadState(newPosts: true).badgeText)

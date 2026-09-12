@@ -2,69 +2,35 @@ import AppKit
 import SwiftUI
 
 struct XGlassNavigationSettingsPage: View {
-    @EnvironmentObject private var browser: XBrowserModel
     @EnvironmentObject private var settings: XGlassSettingsStore
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 24) {
+        VStack(alignment: .leading, spacing: 26) {
             XGlassSettingsHeader(page: .navigation)
-
-            XGlassSettingsGroup(
-                title: "Quick routes",
-                footer: "These buttons use the same normal X.com WebKit session as the main sidebar. They do not create API credentials or a second account session."
-            ) {
-                HStack(spacing: 10) {
-                    XGlassSettingsRouteAction(
-                        title: "Home",
-                        systemImage: XRoute.home.systemImage,
-                        action: { browser.navigate(to: .home) }
-                    )
-                    XGlassSettingsRouteAction(
-                        title: "Your profile",
-                        systemImage: XRoute.profile.systemImage,
-                        action: browser.navigateToOwnProfile
-                    )
-                    XGlassSettingsRouteAction(
-                        title: "Account settings",
-                        systemImage: XRoute.settings.systemImage,
-                        action: { browser.navigate(to: .settings) }
-                    )
+            XGlassSettingsGroup(title: "Reading", footer: nil) {
+                HStack {
+                    Label("Page size", systemImage: "textformat.size")
+                    Spacer()
+                    Text("\(Int((settings.pageZoom * 100).rounded()))%").monospacedDigit()
+                    Button("Reset") { settings.setPageZoom(1) }.controlSize(.small)
+                        .disabled(abs(settings.pageZoom - 1) < 0.01)
                 }
-
-                Divider()
-
-                HStack(alignment: .top, spacing: 12) {
-                    Image(systemName: "arrow.triangle.2.circlepath")
-                        .foregroundStyle(settings.colors.accent)
-                    Text("Route recovery waits for X's SPA navigation to settle, retries once when needed, and leaves a visible Retry action instead of silently abandoning the page.")
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
-                        .fixedSize(horizontal: false, vertical: true)
+                Slider(value: Binding(get: { settings.pageZoom }, set: settings.setPageZoom), in: XGlassReadingScale.range, step: 0.05)
+                    .accessibilityLabel("Page size")
+                Picker("Feed width", selection: Binding(get: { settings.feedWidth }, set: settings.setFeedWidth)) {
+                    ForEach(XGlassFeedWidth.allCases) { Text($0.title).tag($0) }
                 }
+                .pickerStyle(.segmented)
             }
-
-            XGlassSettingsGroup(
-                title: "Desktop behavior",
-                footer: "XGlass keeps a resizable native window with a compact layout threshold so the sidebar and feed remain usable on smaller displays."
-            ) {
-                XGlassSettingsValueRow(
-                    title: "Window",
-                    value: "Resizable",
-                    systemImage: "macwindow",
-                    accent: settings.colors.accent
-                )
-                XGlassSettingsValueRow(
-                    title: "Minimum content",
-                    value: "600 x 480",
-                    systemImage: "arrow.down.right.and.arrow.up.left",
-                    accent: settings.colors.accent
-                )
-                XGlassSettingsValueRow(
-                    title: "External links",
-                    value: "Open in default browser",
-                    systemImage: "safari",
-                    accent: settings.colors.accent
-                )
+            XGlassSettingsGroup(title: "Window", footer: nil) {
+                Toggle("Show browser toolbar", isOn: Binding(get: { settings.showBrowserToolbar }, set: settings.setShowBrowserToolbar))
+                Toggle("Always use icon-only navigation", isOn: Binding(get: { settings.compactSidebar }, set: settings.setCompactSidebar))
+            }
+            XGlassSettingsGroup(title: "Playback & Energy", footer: nil) {
+                Toggle("Suspend media when the window is hidden", isOn: Binding(
+                    get: { settings.pauseMediaInBackground }, set: settings.setPauseMediaInBackground
+                ))
+                Toggle("Reduce ambient motion", isOn: Binding(get: { settings.reduceMotion }, set: settings.setReduceMotion))
             }
         }
     }
@@ -75,56 +41,18 @@ struct XGlassPrivacySettingsPage: View {
     @EnvironmentObject private var settings: XGlassSettingsStore
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 24) {
+        VStack(alignment: .leading, spacing: 26) {
             XGlassSettingsHeader(page: .privacy)
-
-            XGlassSettingsGroup(
-                title: "Feed controls",
-                footer: "Promoted-post filtering happens locally in the page presentation layer. It does not change your X account, preferences, follows, or ad settings."
-            ) {
-                Toggle("Hide promoted posts", isOn: Binding(
-                    get: { settings.hidePromotedPosts },
-                    set: { settings.setHidePromotedPosts($0) }
-                ))
-                XGlassSettingsValueRow(
-                    title: "Account access",
-                    value: "Normal X.com session",
-                    systemImage: "person.crop.circle",
-                    accent: settings.colors.accent
-                )
-                XGlassSettingsValueRow(
-                    title: "API credentials",
-                    value: "Not used by XGlass",
-                    systemImage: "key.slash",
-                    accent: settings.colors.accent
-                )
-                XGlassSettingsValueRow(
-                    title: "Two-factor authentication",
-                    value: "Handled by X.com",
-                    systemImage: "lock.shield",
-                    accent: settings.colors.accent
-                )
+            XGlassSettingsGroup(title: "Feed", footer: nil) {
+                Toggle("Hide promoted posts", isOn: Binding(get: { settings.hidePromotedPosts }, set: settings.setHidePromotedPosts))
             }
-
-            XGlassSettingsGroup(
-                title: "Privacy boundary",
-                footer: "XGlass does not read or store your X password, two-factor codes, API keys, or private account tokens. WebKit owns the signed-in session and X remains responsible for sign-in and account security."
-            ) {
-                HStack(alignment: .top, spacing: 12) {
-                    Image(systemName: "checkmark.shield.fill")
-                        .foregroundStyle(.green)
-                    Text("The app customizes presentation around the existing X web session. Sign-in, 2FA prompts, account settings, posting, and messaging remain inside X.com.")
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
-                        .fixedSize(horizontal: false, vertical: true)
+            XGlassSettingsGroup(title: "Account", footer: nil) {
+                XGlassSettingsValueRow(title: "Sign-in", value: "X.com", systemImage: "lock.shield", accent: settings.colors.accent)
+                Button("X Account Settings", systemImage: "person.crop.circle") { browser.navigate(to: .settings) }
+                Button("Privacy and Safety", systemImage: "hand.raised") {
+                    browser.navigate(to: URL(string: "https://x.com/settings/privacy_and_safety")!)
                 }
-
-                Button {
-                    browser.openCurrentPageInBrowser()
-                } label: {
-                    Label("Open current page in browser", systemImage: "safari")
-                }
-                .buttonStyle(.bordered)
+                Button("Open in Browser", systemImage: "safari", action: browser.openCurrentPageInBrowser)
             }
         }
     }
@@ -135,70 +63,51 @@ struct XGlassDiagnosticsSettingsPage: View {
     @EnvironmentObject private var settings: XGlassSettingsStore
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 24) {
+        VStack(alignment: .leading, spacing: 26) {
             XGlassSettingsHeader(page: .diagnostics)
-
-            XGlassSettingsGroup(
-                title: "Interface health check",
-                footer: "The check inspects the current page without clicking posts, sending messages, changing account settings, or navigating through your account."
-            ) {
-                HStack(alignment: .center, spacing: 12) {
-                    Button {
-                        browser.runInterfaceHealthCheck()
-                    } label: {
-                        Label(
-                            browser.isRunningHealthCheck ? "Checking..." : "Run health check",
-                            systemImage: browser.isRunningHealthCheck ? "hourglass" : "stethoscope"
-                        )
-                    }
-                    .buttonStyle(.borderedProminent)
-                    .disabled(browser.isRunningHealthCheck)
-
+            XGlassSettingsGroup(title: "Interface", footer: nil) {
+                HStack(spacing: 12) {
+                    Button(browser.isRunningHealthCheck ? "Checking..." : "Run Health Check", systemImage: "stethoscope", action: browser.runInterfaceHealthCheck)
+                        .buttonStyle(.borderedProminent).disabled(browser.isRunningHealthCheck)
                     if let report = browser.healthReport {
-                        Label(
-                            report.allPassed ? "All checks passed" : "Review failed checks",
-                            systemImage: report.allPassed ? "checkmark.circle.fill" : "exclamationmark.triangle.fill"
-                        )
-                        .font(.subheadline.weight(.semibold))
-                        .foregroundStyle(report.allPassed ? .green : .orange)
+                        Label(report.allPassed ? "All checks passed" : "Needs attention", systemImage: report.allPassed ? "checkmark.circle.fill" : "exclamationmark.triangle.fill")
+                            .foregroundStyle(report.allPassed ? .green : .orange)
+                            .font(.subheadline)
                     }
                 }
-
                 if let report = browser.healthReport {
-                    VStack(alignment: .leading, spacing: 8) {
-                        Text("Current page: \(report.pagePath)")
-                            .font(.caption.monospaced())
-                            .foregroundStyle(.secondary)
-
-                        ForEach(report.checks) { check in
-                            HStack(spacing: 9) {
-                                Image(systemName: check.passed ? "checkmark.circle.fill" : "xmark.circle.fill")
-                                    .foregroundStyle(check.passed ? .green : .red)
-                                Text(check.title)
-                                    .font(.subheadline)
-                                Spacer(minLength: 0)
-                                Text(check.detail)
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
-                                    .lineLimit(1)
+                    Text(report.checkedAt, style: .time).font(.caption).foregroundStyle(.secondary)
+                    ForEach(report.checks) { check in
+                        HStack(alignment: .top, spacing: 10) {
+                            Image(systemName: check.passed ? "checkmark.circle.fill" : "exclamationmark.circle.fill")
+                                .foregroundStyle(check.passed ? .green : .orange)
+                            VStack(alignment: .leading, spacing: 3) {
+                                Text(check.title).font(.subheadline)
+                                Text(check.detail).font(.caption).foregroundStyle(.secondary)
                             }
+                            Spacer(minLength: 0)
                         }
                     }
-                    .padding(.top, 4)
                 }
             }
-
-            XGlassSettingsGroup(
-                title: "Release route matrix",
-                footer: "The matrix is intentionally descriptive. Use the main sidebar or Quick routes to open a page, then run the current-page check."
-            ) {
-                ForEach(XRoute.allCases) { route in
-                    XGlassSettingsValueRow(
-                        title: route.rawValue,
-                        value: route.url.path,
-                        systemImage: route.systemImage,
-                        accent: settings.colors.accent
-                    )
+            XGlassSettingsGroup(title: "Recovery", footer: nil) {
+                Text("Page status: \(browser.loadState)")
+                DisclosureGroup("Recent loading events") {
+                    Text(browser.diagnosticEvents.suffix(16).joined(separator: "\n"))
+                        .font(.system(size: 11, design: .monospaced))
+                        .textSelection(.enabled)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
+                Button("Restart Web Session", action: browser.restartWebSession)
+                Button("Copy Diagnostic Report", systemImage: "doc.on.doc", action: browser.copyDiagnosticReport)
+                Toggle("Compatibility mode (applies on next reload)", isOn: $browser.compatibilityMode)
+                Text("Uses X’s standard page appearance to help diagnose loading problems.").font(.caption).foregroundStyle(.secondary)
+                HStack {
+                    Button("Reload Page", systemImage: "arrow.clockwise", action: browser.reload)
+                    Button("Return Home", systemImage: "house") { browser.navigate(to: .home) }
+                }
+                if let status = browser.statusMessage {
+                    Text(status).font(.subheadline).foregroundStyle(.secondary)
                 }
             }
         }
@@ -206,61 +115,30 @@ struct XGlassDiagnosticsSettingsPage: View {
 }
 
 struct XGlassAboutSettingsPage: View {
-    @EnvironmentObject private var settings: XGlassSettingsStore
-
     private var appVersion: String {
         Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "1.0.0"
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 24) {
-            XGlassSettingsHeader(page: .about)
-
-            XGlassSettingsGroup(
-                title: "XGlass",
-                footer: "XGlass is a native macOS shell for X.com, using WebKit's normal site session instead of a separate API client."
-            ) {
-                HStack(spacing: 14) {
-                    if let icon = NSImage(named: NSImage.Name("XGlass")) {
-                        Image(nsImage: icon)
-                            .resizable()
-                            .frame(width: 64, height: 64)
-                            .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
-                    } else {
-                        SettingsIconBadge(systemName: "xmark", tint: settings.colors.accent, size: 64)
-                    }
-
-                    VStack(alignment: .leading, spacing: 3) {
-                        Text("XGlass")
-                            .font(.title2.weight(.bold))
-                        Text("Version \(appVersion)")
-                            .font(.subheadline)
-                            .foregroundStyle(.secondary)
-                        Text("Apple Silicon · macOS 14+")
-                            .font(.caption)
-                            .foregroundStyle(.tertiary)
-                    }
+        VStack(alignment: .leading, spacing: 28) {
+            HStack(spacing: 18) {
+                Image(nsImage: NSApplication.shared.applicationIconImage).resizable().frame(width: 82, height: 82)
+                VStack(alignment: .leading, spacing: 5) {
+                    Text("XGlass").font(.system(size: 26, weight: .bold))
+                    Text("Version \(appVersion)").foregroundStyle(.secondary)
+                    Text("macOS 14 or later").font(.caption).foregroundStyle(.secondary)
                 }
-
-                Divider()
-
-                HStack(spacing: 10) {
-                    Button {
-                        (NSApp.delegate as? XGlassAppDelegate)?.checkForUpdates()
-                    } label: {
-                        Label("Check for updates", systemImage: "arrow.down.circle")
-                    }
-                    .buttonStyle(.borderedProminent)
-
-                    Button {
-                        if let url = URL(string: "https://github.com/appleforever11/XGlass") {
-                            NSWorkspace.shared.open(url)
-                        }
-                    } label: {
-                        Label("GitHub", systemImage: "link")
-                    }
-                    .buttonStyle(.bordered)
+            }
+            XGlassSettingsGroup(title: "Updates", footer: nil) {
+                Button("Check for Updates...", systemImage: "arrow.down.circle") {
+                    (NSApp.delegate as? XGlassAppDelegate)?.checkForUpdates()
                 }
+                .buttonStyle(.borderedProminent)
+            }
+            XGlassSettingsGroup(title: "Project", footer: nil) {
+                Link("GitHub", destination: URL(string: "https://github.com/appleforever11/XGlass")!)
+                Link("Release Notes", destination: URL(string: "https://github.com/appleforever11/XGlass/releases")!)
+                Link("Report an Issue", destination: URL(string: "https://github.com/appleforever11/XGlass/issues")!)
             }
         }
     }

@@ -57,6 +57,7 @@ struct XGlassCommands: Commands {
             Button("X Account Settings") { browser.navigate(to: .settings) }
         }
         CommandMenu("Tools") {
+            Button("Restart Web Session", action: browser.restartWebSession)
             Button("Run Interface Health Check", action: browser.runInterfaceHealthCheck)
                 .keyboardShortcut("i", modifiers: [.command, .option])
             Button("Retry Last Navigation", action: browser.retryLastNavigation).disabled(!browser.canRetry)

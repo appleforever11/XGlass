@@ -6,6 +6,8 @@ import Network
 
 @MainActor
 final class XBrowserModel: NSObject, ObservableObject {
+    @Published var imageDownloadStatus: String?
+    @Published var webViewID = UUID()
     @Published var showsFindBar = false
     @Published var findQuery = ""
     @Published var findMatch: Bool?
@@ -39,7 +41,7 @@ final class XBrowserModel: NSObject, ObservableObject {
     var draftCheckID: UUID?
     var healthCheckID: UUID?
     var loadStartedAt = Date()
-    var diagnosticEvents: [String] = []
+    @Published var diagnosticEvents: [String] = []
     let networkMonitor = NWPathMonitor()
     var networkAvailable = true
     var loadGeneration = UUID()
@@ -48,6 +50,7 @@ final class XBrowserModel: NSObject, ObservableObject {
 
     override init() {
         super.init()
+        imageSaver.progressHandler = { [weak self] in self?.imageDownloadStatus = $0 }
         imageSaver.statusHandler = { [weak self] message in
             self?.statusMessage = message
         }
@@ -132,8 +135,9 @@ final class XBrowserModel: NSObject, ObservableObject {
 
     func loadInitialPageIfNeeded() {
         guard let webView, webView.url == nil else { return }
-        lastRequestedRoute = .home
-        webView.load(URLRequest(url: XRoute.home.url))
+        let destination = requestedURL ?? XRoute.home.url
+        lastRequestedRoute = XRoute.match(url: destination)
+        webView.load(URLRequest(url: destination))
     }
 
     func navigate(to url: URL) {

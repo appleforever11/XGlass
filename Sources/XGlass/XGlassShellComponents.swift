@@ -41,6 +41,7 @@ struct XGlassBrowserSurface: View {
             if browser.showsFindBar { XGlassFindBar(browser: browser) }
 
             XWebView()
+                .id(browser.webViewID)
                 .background(settings.colors.content.opacity(0.94))
         }
         .background(settings.colors.content)

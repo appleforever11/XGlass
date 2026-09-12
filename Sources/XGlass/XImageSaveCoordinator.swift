@@ -3,6 +3,13 @@ import WebKit
 
 @MainActor
 final class XImageSaveCoordinator: NSObject, WKDownloadDelegate {
+    var progressHandler: ((String?) -> Void)?
+    private var activeDownloads: [UUID: String] = [:]
+
+    private func publishProgress() {
+        progressHandler?(activeDownloads.isEmpty ? nil : activeDownloads.count == 1 ? activeDownloads.values.first : "Saving \(activeDownloads.count) images…")
+    }
+
     var statusHandler: ((String) -> Void)?
 
     private weak var webView: WKWebView?
@@ -114,10 +121,20 @@ final class XImageSaveCoordinator: NSObject, WKDownloadDelegate {
     private func fetchImage(_ imageURL: URL, to destinationURL: URL, using webView: XGlassWebView) {
         let cookieStore = webView.configuration.websiteDataStore.httpCookieStore
         let userAgent = webView.customUserAgent
-        statusHandler?("Saving image…")
+        let downloadID = UUID()
+        activeDownloads[downloadID] = "Saving image…"
+        publishProgress()
         cookieStore.getAllCookies { [weak self] cookies in
-            XGlassImageDownload(cookies: cookies).save(imageURL, to: destinationURL, userAgent: userAgent) { result in
+            XGlassImageDownload(cookies: cookies, progress: { percent in
                 Task { @MainActor in
+                    guard self?.activeDownloads[downloadID] != nil else { return }
+                    self?.activeDownloads[downloadID] = "Saving image: \(percent)%"
+                    self?.publishProgress()
+                }
+            }).save(imageURL, to: destinationURL, userAgent: userAgent) { result in
+                Task { @MainActor in
+                    self?.activeDownloads.removeValue(forKey: downloadID)
+                    self?.publishProgress()
                     switch result {
                     case .success:
                         self?.rememberImageDirectory(for: destinationURL)

@@ -128,13 +128,6 @@ extension XBrowserModel {
     }
 
     func copyDiagnosticReport() {
-        webView?.evaluateJavaScript("JSON.stringify(window.__xglassPerformance || {})") { [weak self] result, _ in
-            guard let self, let value = result as? String,
-                  let data = value.data(using: .utf8),
-                  let metrics = try? JSONSerialization.jsonObject(with: data) as? [String: Double] else { return }
-            self.recordLoadEvent("Layout: \(Int(metrics["paints"] ?? 0)) passes, max \(String(format: "%.2f", metrics["maxMs"] ?? 0))ms")
-            self.writeDiagnosticReport()
-        }
         writeDiagnosticReport()
     }
 

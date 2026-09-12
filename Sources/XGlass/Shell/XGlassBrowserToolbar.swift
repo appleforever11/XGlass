@@ -28,6 +28,9 @@ struct XGlassBrowserToolbar: View {
                     .help("Waiting for X to show page content")
                     .accessibilityLabel("Loading page content")
             }
+            if let progress = browser.imageDownloadStatus {
+                Text(progress).font(.caption).lineLimit(1).accessibilityLabel(progress)
+            }
             Spacer(minLength: 8)
             if workspace.isFocused {
                 XGlassToolbarButton(title: "Exit Focus Mode", systemImage: "sidebar.leading", colors: colors) {

@@ -7,6 +7,18 @@ extension XBrowserModel: WKNavigationDelegate {
         monitorPageReadiness(in: webView)
     }
 
+    func webView(_ webView: WKWebView, decidePolicyFor navigationResponse: WKNavigationResponse,
+                 decisionHandler: @escaping @MainActor @Sendable (WKNavigationResponsePolicy) -> Void) {
+        if navigationResponse.isForMainFrame, let response = navigationResponse.response as? HTTPURLResponse {
+            recordLoadEvent("Document HTTP \(response.statusCode)")
+        }
+        decisionHandler(navigationResponse.canShowMIMEType ? .allow : .download)
+    }
+
+    func webView(_ webView: WKWebView, didCommit navigation: WKNavigation!) {
+        recordLoadEvent("Document committed")
+    }
+
     func webViewWebContentProcessDidTerminate(_ webView: WKWebView) {
         loadWatchdog.cancel()
         cancelPendingNavigation()
@@ -23,7 +35,7 @@ extension XBrowserModel: WKNavigationDelegate {
         cancelPendingNavigation()
         statusMessage = requestedRoute.map { "X could not finish loading \($0.rawValue)." } ?? error.localizedDescription
         loadState = (error as NSError).code == NSURLErrorNotConnectedToInternet ? "Offline" : "Failed"
-        recordLoadEvent(loadState)
+        recordLoadEvent("\(loadState): navigation error code \((error as NSError).code)")
         canRetry = true
     }
 
@@ -34,11 +46,12 @@ extension XBrowserModel: WKNavigationDelegate {
         cancelPendingNavigation()
         statusMessage = requestedRoute.map { "X could not finish loading \($0.rawValue)." } ?? error.localizedDescription
         loadState = (error as NSError).code == NSURLErrorNotConnectedToInternet ? "Offline" : "Failed"
-        recordLoadEvent(loadState)
+        recordLoadEvent("\(loadState): navigation error code \((error as NSError).code)")
         canRetry = true
     }
 
     func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
+        recordLoadEvent("Document finished; awaiting rendered content")
         // Document completion does not imply that X has rendered the destination.
         // The existing content monitor owns completion and its original deadline.
     }

@@ -32,3 +32,13 @@ Image saves use an ephemeral disk download, destination-scoped cookies (also on 
 Retry and Navigation → Reload from Origin (Shift-Command-R) revalidate the current document from the origin. A different pending destination uses a bounded request that bypasses local cache. Neither action deletes cookies, website data, or preferences, and both retain the draft-protection check. The recovery panel offers Open in Browser and Retry with Standard Appearance; the latter synchronously removes optional presentation scripts before reloading so it does not race the next SwiftUI update.
 
 Readiness rejects hidden content and requires an exact requested post ID. Username authentication and explicit empty-state surfaces count as rendered content. Stop Loading cancels probes and exposes a retry state. A terminated WebKit process is reported honestly: writing already lost in that process cannot be recovered by XGlass.
+
+## Diagnostics, session restart, and interaction checks
+
+Startup diagnostics now record main-document HTTP status, commit/completion stages, elapsed milliseconds, and aggregate script/stylesheet/image/JavaScript error counts. The bridge accepts only fixed phase names and bounded numbers; it does not copy URLs, stack traces, error messages, or account content. Events remain in the bounded in-memory history and are readable in Diagnostics. Copy Diagnostic Report writes the clipboard once.
+
+Heavy presentation code waits for initial interface content, with at most 240 checks per visible episode at 250 ms spacing. It stops polling while hidden; the existing styling scheduler continues to coalesce DOM work. Compatibility mode still retains diagnostics, unread, and draft bridges.
+
+Restart Web Session is an explicit, draft-protected action in Tools and Diagnostics. It replaces the web view while retaining the default website data store, current destination, and appearance preferences. Back/forward history belongs to the replaced web view and is reset. Messages from the retired view cannot update the native draft/unread/telemetry state.
+
+Image saves show an ongoing toolbar status and percentage when the server provides a content length. Concurrent saves are summarized. Deferred scroll saves retain the route and position captured by their scroll event so SPA navigation cannot write that position under a different route. Post URLs no longer incorrectly select Profile.

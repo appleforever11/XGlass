@@ -2,9 +2,22 @@ import Foundation
 import ImageIO
 
 /// A download uses only cookies belonging to its destination, including redirects.
-final class XGlassImageDownload: NSObject, URLSessionTaskDelegate, @unchecked Sendable {
+final class XGlassImageDownload: NSObject, URLSessionDownloadDelegate, @unchecked Sendable {
     private let cookies: [HTTPCookie]
-    init(cookies: [HTTPCookie]) { self.cookies = cookies }
+    private let progress: @Sendable (Int) -> Void
+    private var reportedPercent = -1
+    init(cookies: [HTTPCookie], progress: @escaping @Sendable (Int) -> Void = { _ in }) {
+        self.cookies = cookies
+        self.progress = progress
+    }
+    func urlSession(_ session: URLSession, downloadTask: URLSessionDownloadTask,
+                    didWriteData bytesWritten: Int64, totalBytesWritten: Int64, totalBytesExpectedToWrite: Int64) {
+        guard totalBytesExpectedToWrite > 0 else { return }
+        let percent = Int(min(100, Double(totalBytesWritten) / Double(totalBytesExpectedToWrite) * 100))
+        if percent >= reportedPercent + 5 { reportedPercent = percent; progress(percent) }
+    }
+    func urlSession(_ session: URLSession, downloadTask: URLSessionDownloadTask, didFinishDownloadingTo location: URL) {}
+
 
     static func cookieHeader(for url: URL, cookies: [HTTPCookie], now: Date = Date()) -> String {
         let host = url.host?.lowercased() ?? ""

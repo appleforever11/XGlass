@@ -23,6 +23,10 @@ final class XGlassWebView: WKWebView {
     private var contextMenuLocation: NSPoint?
     private var observesMenus = false
     private(set) var contextImageURL: URL?
+    var pauseMediaInBackground = true {
+        didSet { if oldValue != pauseMediaInBackground { updateMediaSuspension() } }
+    }
+    private var mediaSuspended = false
 
     override func viewDidMoveToWindow() {
         super.viewDidMoveToWindow()
@@ -34,6 +38,26 @@ final class XGlassWebView: WKWebView {
             name: NSMenu.didBeginTrackingNotification,
             object: nil
         )
+        for name in [NSWindow.didChangeOcclusionStateNotification, NSWindow.didMiniaturizeNotification,
+                     NSWindow.didDeminiaturizeNotification, NSApplication.didHideNotification,
+                     NSApplication.didUnhideNotification] {
+            NotificationCenter.default.addObserver(self, selector: #selector(windowVisibilityChanged(_:)), name: name, object: nil)
+        }
+        updateMediaSuspension()
+    }
+
+    @objc private func windowVisibilityChanged(_ notification: Notification) {
+        if let changedWindow = notification.object as? NSWindow, changedWindow !== window { return }
+        updateMediaSuspension()
+    }
+
+    private func updateMediaSuspension() {
+        guard let window else { return }
+        let suspended = pauseMediaInBackground &&
+            (NSApp.isHidden || window.isMiniaturized || !window.occlusionState.contains(.visible))
+        guard suspended != mediaSuspended else { return }
+        mediaSuspended = suspended
+        setAllMediaPlaybackSuspended(suspended, completionHandler: nil)
     }
 
     override func rightMouseDown(with event: NSEvent) {
@@ -78,20 +102,28 @@ struct XWebView: NSViewRepresentable {
 
     @MainActor
     final class Coordinator {
+        private var lastCompatibilityMode: Bool?
         private var lastThemePayload: String?
         private var lastPreferencesPayload: String?
 
         func applySettings(
             to webView: WKWebView,
             themePayload: String,
-            preferencesPayload: String
+            preferencesPayload: String,
+            compatibilityMode: Bool
         ) {
-            guard themePayload != lastThemePayload || preferencesPayload != lastPreferencesPayload else {
+            guard themePayload != lastThemePayload || preferencesPayload != lastPreferencesPayload || compatibilityMode != lastCompatibilityMode else {
                 return
             }
 
+            lastCompatibilityMode = compatibilityMode
             lastThemePayload = themePayload
             lastPreferencesPayload = preferencesPayload
+            XGlassWebScriptInstaller.install(
+                on: webView.configuration.userContentController,
+                themePayload: themePayload,
+                preferencesPayload: preferencesPayload, compatibilityMode: compatibilityMode
+            )
 
             let script = """
             (() => {
@@ -116,34 +148,6 @@ struct XWebView: NSViewRepresentable {
         configuration.preferences.javaScriptCanOpenWindowsAutomatically = true
         configuration.allowsAirPlayForMediaPlayback = true
         configuration.mediaTypesRequiringUserActionForPlayback = .all
-        configuration.userContentController.addUserScript(
-            WKUserScript(
-                source: "window.__xglassTheme = \(settings.javascriptThemePayload); window.__xglassPreferences = \(settings.javascriptPreferencesPayload);",
-                injectionTime: .atDocumentStart,
-                forMainFrameOnly: true
-            )
-        )
-        configuration.userContentController.addUserScript(
-            WKUserScript(
-                source: XGlassDOMScripts.bootstrap,
-                injectionTime: .atDocumentStart,
-                forMainFrameOnly: true
-            )
-        )
-        configuration.userContentController.addUserScript(
-            WKUserScript(
-                source: XGlassDOMScripts.contextMenu,
-                injectionTime: .atDocumentStart,
-                forMainFrameOnly: true
-            )
-        )
-        configuration.userContentController.addUserScript(
-            WKUserScript(
-                source: XGlassDOMScripts.chromeSuppression(minimumPaintInterval: minimumPaintInterval),
-                injectionTime: .atDocumentEnd,
-                forMainFrameOnly: true
-            )
-        )
         let webView = XGlassWebView(frame: .zero, configuration: configuration)
         configuration.userContentController.add(
             WeakScriptMessageHandler(webView: webView),
@@ -152,22 +156,29 @@ struct XWebView: NSViewRepresentable {
         webView.underPageBackgroundColor = .clear
         webView.layer?.backgroundColor = NSColor.clear.cgColor
         webView.setValue(false, forKey: "drawsBackground")
+        configuration.userContentController.add(XGlassDraftMonitor(browser: browser), name: "xglassDraft")
+        configuration.userContentController.add(XGlassUnreadMonitor(browser: browser), name: "xglassUnread")
+        configuration.userContentController.add(XGlassLoadTelemetry(browser: browser), name: "xglassLoadTelemetry")
         browser.attach(webView)
-        browser.loadInitialPageIfNeeded()
+        webView.pageZoom = settings.pageZoom
+        webView.pauseMediaInBackground = settings.pauseMediaInBackground
         context.coordinator.applySettings(
             to: webView,
             themePayload: settings.javascriptThemePayload,
-            preferencesPayload: settings.javascriptPreferencesPayload
+            preferencesPayload: settings.javascriptPreferencesPayload, compatibilityMode: browser.compatibilityMode
         )
+        browser.loadInitialPageIfNeeded()
         return webView
     }
 
     func updateNSView(_ nsView: WKWebView, context: Context) {
         browser.attach(nsView)
+        if nsView.pageZoom != settings.pageZoom { nsView.pageZoom = settings.pageZoom }
+        (nsView as? XGlassWebView)?.pauseMediaInBackground = settings.pauseMediaInBackground
         context.coordinator.applySettings(
             to: nsView,
             themePayload: settings.javascriptThemePayload,
-            preferencesPayload: settings.javascriptPreferencesPayload
+            preferencesPayload: settings.javascriptPreferencesPayload, compatibilityMode: browser.compatibilityMode
         )
     }
 }
