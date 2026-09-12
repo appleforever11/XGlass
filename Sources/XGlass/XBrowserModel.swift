@@ -247,6 +247,9 @@ final class XBrowserModel: NSObject, ObservableObject {
         cancelPendingNavigation()
         loadWatchdog.cancel()
         webView?.stopLoading()
+        loadState = "Stopped"
+        canRetry = true
+        statusMessage = "Loading stopped. Retry when you’re ready."
     }
 
     func copyCurrentPageLink() {
@@ -373,18 +376,6 @@ final class XBrowserModel: NSObject, ObservableObject {
             self.canRetry = true
         }
     }
-
-    func retryLastNavigation() {
-        guard let webView else { return }
-        protectDraft(in: webView) { [weak self, weak webView] in
-            guard let self, let webView else { return }
-            self.recoveryAttempts = 0
-            self.statusMessage = nil
-            self.canRetry = false
-            webView.load(URLRequest(url: self.requestedURL ?? self.currentURL))
-        }
-    }
-
 
     private func completeNavigation() {
         pendingNavigationTask?.cancel()

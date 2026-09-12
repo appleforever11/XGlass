@@ -22,6 +22,13 @@ The native notification bell mirrors unread counts exposed by X's notification n
 
 ### Late content and image downloads
 
-After the content deadline, bounded readiness observation continues for up to 60 probes in total. Late success dismisses the Slow warning without replacing the document. The user remains in control of reloads.
+Readiness observation has a 60-second monotonic window. Each JavaScript probe times out after two seconds; a final in-flight probe can finish just after that window. Late callbacks cannot resume a probe twice. Late success dismisses the Slow warning without replacing the document. The user remains in control of reloads.
 
 Image saves use an ephemeral disk download, destination-scoped cookies (also on redirects), 30-second request / 120-second resource timeouts, image metadata validation, and atomic replacement of an approved existing file. Invalid responses leave the existing file intact. Successful saves retain the chosen directory. X image URLs with `format` query parameters use that format in the suggested filename.
+
+
+## Startup recovery hardening (2026-09-12)
+
+Retry and Navigation → Reload from Origin (Shift-Command-R) revalidate the current document from the origin. A different pending destination uses a bounded request that bypasses local cache. Neither action deletes cookies, website data, or preferences, and both retain the draft-protection check. The recovery panel offers Open in Browser and Retry with Standard Appearance; the latter synchronously removes optional presentation scripts before reloading so it does not race the next SwiftUI update.
+
+Readiness rejects hidden content and requires an exact requested post ID. Username authentication and explicit empty-state surfaces count as rendered content. Stop Loading cancels probes and exposes a retry state. A terminated WebKit process is reported honestly: writing already lost in that process cannot be recovered by XGlass.

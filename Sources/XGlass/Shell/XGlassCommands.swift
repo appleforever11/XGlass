@@ -43,6 +43,8 @@ struct XGlassCommands: Commands {
             Button("Forward", action: browser.goForward)
                 .keyboardShortcut("]", modifiers: .command).disabled(!browser.canGoForward)
             Button("Reload", action: browser.reload).keyboardShortcut("r", modifiers: .command)
+            Button("Reload from Origin", action: browser.retryLastNavigation)
+                .keyboardShortcut("r", modifiers: [.command, .shift])
             Divider()
             ForEach(Array([XRoute.home, .explore, .notifications, .messages, .bookmarks, .lists, .profile].enumerated()), id: \.element.id) { index, route in
                 Button(route == .profile ? "Your Profile" : route.rawValue) { browser.navigate(to: route) }

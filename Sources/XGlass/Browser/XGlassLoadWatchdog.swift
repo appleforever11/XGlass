@@ -13,14 +13,24 @@ final class XGlassLoadWatchdog {
 
     static let readinessScript = #"""
     (() => {
-      const visible = node => node && node.getClientRects().length > 0;
-      if (visible(document.querySelector('input[type="password"], input[autocomplete="one-time-code"]'))) return true;
+      const visible = node => {
+        if (!node || !node.getClientRects().length) return false;
+        for (let parent = node; parent; parent = parent.parentElement) {
+          const style = getComputedStyle(parent);
+          if (parent.hidden || style.display === 'none' || style.visibility === 'hidden' || style.opacity === '0') return false;
+        }
+        return true;
+      };
+      if (visible(document.querySelector('input[type="password"], input[autocomplete="one-time-code"], input[autocomplete="username"]'))) return true;
       const main = document.querySelector('[data-testid="primaryColumn"], main, [role="main"]');
       if (!main) return false;
       const statusID = location.pathname.match(/\/status\/(\d+)/)?.[1];
       if (statusID) return Array.from(main.querySelectorAll('article')).some(article =>
-        visible(article) && article.querySelector(`a[href*="/status/${statusID}"]`));
-      if (Array.from(main.querySelectorAll('article, [data-testid="tweet"]')).some(visible)) return true;
+        visible(article) && Array.from(article.querySelectorAll('a[href]')).some(link => {
+          try { return new URL(link.href, location.href).pathname.match(/\/status\/(\d+)(?:\/|$)/)?.[1] === statusID; }
+          catch (_) { return false; }
+        }));
+      if (Array.from(main.querySelectorAll('article, [data-testid="tweet"], [data-testid="emptyState"]')).some(visible)) return true;
       if (Array.from(main.querySelectorAll('[role="progressbar"]')).some(visible)) return false;
       return visible(main) && main.innerText.trim().length > 40 &&
         Boolean(main.querySelector('button, a, [role="button"]'));

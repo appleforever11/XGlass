@@ -33,6 +33,7 @@ extension XBrowserModel {
         recordLoadEvent("Loading")
         loadWatchdog.start(in: webView, ready: { [weak self] in
             guard let self, self.loadGeneration == generation else { return }
+            self.readinessTask?.cancel()
             self.loadState = "Ready"
             self.canRetry = false
             self.statusMessage = nil
@@ -51,13 +52,13 @@ extension XBrowserModel {
             self.recordLoadEvent("Manual retry required")
         }
         readinessTask = Task { @MainActor [weak self, weak webView] in
-            // Continue observing late content for at most 60 probes; never reload it.
-            for _ in 0..<60 {
+            let deadline = ContinuousClock.now.advanced(by: .seconds(60))
+            while ContinuousClock.now < deadline {
                 try? await Task.sleep(for: .seconds(1))
                 guard !Task.isCancelled, let self, let webView, self.loadGeneration == generation else { return }
-                let result = try? await webView.evaluateJavaScript(XGlassLoadWatchdog.readinessScript)
+                let result = await XGlassPageProbe.readiness(in: webView)
                 guard !Task.isCancelled, self.loadGeneration == generation else { return }
-                if result as? Bool == true && !webView.isLoading {
+                if result == true && !webView.isLoading {
                     self.loadWatchdog.cancel()
                     self.loadState = "Ready"
                     self.statusMessage = nil
