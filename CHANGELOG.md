@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.2.4
+
+- Run WebKit fixture tests serially in the release gate so concurrent XCTest workers cannot terminate isolated `WKWebView` fixtures under runner resource contention.
+
 ## 1.2.3
 
 - Removed remaining SwiftUI settings binding method references so Swift 6.3.3 release runners compile the shell without the IRGen reabstraction crash.

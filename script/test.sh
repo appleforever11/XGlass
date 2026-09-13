@@ -7,6 +7,8 @@ TEST_BUILD_CONFIGURATION="${XGLASS_TEST_BUILD_CONFIGURATION:-debug}"
 # Swift 6.3.3 on the GitHub macOS runner can crash in batch IR generation for
 # the SwiftUI settings module. Compile primary files independently so the
 # release check remains deterministic across the supported toolchains.
+# WebKit fixtures also run in one test process: SwiftPM's parallel XCTest
+# workers can terminate fixture WKWebViews under runner resource contention.
 SWIFT_COMPILER_FLAGS=(-Xswiftc -disable-batch-mode)
 
 cd "$ROOT_DIR"
@@ -41,6 +43,6 @@ if [[ -n "$TEST_BUNDLE" ]]; then
     fi
 fi
 
-swift test --configuration "$TEST_BUILD_CONFIGURATION" --skip-build --parallel --build-path "$TEST_BUILD_PATH"
+swift test --configuration "$TEST_BUILD_CONFIGURATION" --skip-build --build-path "$TEST_BUILD_PATH"
 
 echo "XGlass SwiftPM build passed (${BUILD_CONFIGURATION}); tests passed (${TEST_BUILD_CONFIGURATION})."
