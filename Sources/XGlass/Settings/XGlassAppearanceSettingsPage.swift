@@ -74,19 +74,21 @@ struct XGlassAppearanceSettingsPage: View {
             XGlassSettingsGroup(title: "Glass & Motion", footer: nil) {
                 HStack(alignment: .top, spacing: 24) {
                     XGlassSlider(title: "Background glow", systemImage: "sun.max", value: Binding(
-                        get: { settings.backgroundGlow }, set: settings.setBackgroundGlow
+                        get: { settings.backgroundGlow }, set: { settings.setBackgroundGlow($0) }
                     ), range: 0.35...1.0)
                     XGlassSlider(title: "Glass intensity", systemImage: "circle.lefthalf.filled", value: Binding(
-                        get: { settings.glassIntensity }, set: settings.setGlassIntensity
+                        get: { settings.glassIntensity }, set: { settings.setGlassIntensity($0) }
                     ), range: 0.25...1.0)
                 }
                 Toggle("Reduce ambient motion", isOn: Binding(
-                    get: { settings.reduceMotion }, set: settings.setReduceMotion
+                    get: { settings.reduceMotion }, set: { settings.setReduceMotion($0) }
                 ))
             }
             HStack {
                 Spacer()
-                Button("Restore Appearance Defaults", systemImage: "arrow.counterclockwise", action: settings.resetAppearance)
+                Button("Restore Appearance Defaults", systemImage: "arrow.counterclockwise") {
+                    settings.resetAppearance()
+                }
                     .controlSize(.small)
             }
         }

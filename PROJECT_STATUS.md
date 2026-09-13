@@ -70,3 +70,5 @@ No posts, likes, messages, notification read-state changes, or account-data rese
 ## 2026-09-13 — Release workflow compiler compatibility
 
 The first `v1.2.0` GitHub Actions run validated the tag, release notes, signing secrets, certificate import, and dependency resolution, then stopped during `Run build checks` when Swift 6.3.3 crashed in batched SwiftUI IR generation for `XGlassAppearanceSettingsPage.swift` (`SmallVector` capacity overflow). No archive or GitHub release was published from that run. The test and release build scripts now pass `-Xswiftc -disable-batch-mode`, isolating primary-file compilation on that runner. A clean local SwiftPM build with the workaround passed; the standard file-provider checkout script was separately stopped after its known default-build planning stall.
+
+The `v1.2.1` workflow confirmed that the runner still crashed while emitting `XGlassAppearanceSettingsPage.swift` even with isolated primary files. The Bool reabstraction thunk was traced to method-reference setters in that view; explicit setter closures now avoid the Swift 6.3.3 compiler path. No archive or GitHub release was published from `v1.2.1`.

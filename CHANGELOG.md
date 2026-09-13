@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.2.2
+
+- Avoided the Swift 6.3.3 SwiftUI IRGen crash in the appearance settings view by using compiler-compatible explicit setter closures alongside isolated primary-file builds.
+
 ## 1.2.1
 
 - Made SwiftPM test and release builds use independent Swift primary-file compilation so Swift 6.3.3 runners avoid the batch IRGen crash encountered in the settings module.
