@@ -50,7 +50,7 @@ struct XGlassBrowserToolbar: View {
                 Divider()
                 Toggle("Focus Mode", isOn: $workspace.isFocused)
                 Menu("Feed Width") {
-                    Picker("Feed Width", selection: Binding(get: { settings.feedWidth }, set: settings.setFeedWidth)) {
+                    Picker("Feed Width", selection: Binding(get: { settings.feedWidth }, set: { settings.setFeedWidth($0) })) {
                         ForEach(XGlassFeedWidth.allCases) { Text($0.title).tag($0) }
                     }
                 }

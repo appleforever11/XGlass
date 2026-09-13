@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.2.3
+
+- Removed remaining SwiftUI settings binding method references so Swift 6.3.3 release runners compile the shell without the IRGen reabstraction crash.
+- Kept release and test builds on independent primary-file compilation for reliable CI packaging.
+
 ## 1.2.2
 
 - Avoided the Swift 6.3.3 SwiftUI IRGen crash in the appearance settings view by using compiler-compatible explicit setter closures alongside isolated primary-file builds.

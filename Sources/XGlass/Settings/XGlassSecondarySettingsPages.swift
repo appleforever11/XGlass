@@ -15,22 +15,22 @@ struct XGlassNavigationSettingsPage: View {
                     Button("Reset") { settings.setPageZoom(1) }.controlSize(.small)
                         .disabled(abs(settings.pageZoom - 1) < 0.01)
                 }
-                Slider(value: Binding(get: { settings.pageZoom }, set: settings.setPageZoom), in: XGlassReadingScale.range, step: 0.05)
+                Slider(value: Binding(get: { settings.pageZoom }, set: { settings.setPageZoom($0) }), in: XGlassReadingScale.range, step: 0.05)
                     .accessibilityLabel("Page size")
-                Picker("Feed width", selection: Binding(get: { settings.feedWidth }, set: settings.setFeedWidth)) {
+                Picker("Feed width", selection: Binding(get: { settings.feedWidth }, set: { settings.setFeedWidth($0) })) {
                     ForEach(XGlassFeedWidth.allCases) { Text($0.title).tag($0) }
                 }
                 .pickerStyle(.segmented)
             }
             XGlassSettingsGroup(title: "Window", footer: nil) {
-                Toggle("Show browser toolbar", isOn: Binding(get: { settings.showBrowserToolbar }, set: settings.setShowBrowserToolbar))
-                Toggle("Always use icon-only navigation", isOn: Binding(get: { settings.compactSidebar }, set: settings.setCompactSidebar))
+                Toggle("Show browser toolbar", isOn: Binding(get: { settings.showBrowserToolbar }, set: { settings.setShowBrowserToolbar($0) }))
+                Toggle("Always use icon-only navigation", isOn: Binding(get: { settings.compactSidebar }, set: { settings.setCompactSidebar($0) }))
             }
             XGlassSettingsGroup(title: "Playback & Energy", footer: nil) {
                 Toggle("Suspend media when the window is hidden", isOn: Binding(
-                    get: { settings.pauseMediaInBackground }, set: settings.setPauseMediaInBackground
+                    get: { settings.pauseMediaInBackground }, set: { settings.setPauseMediaInBackground($0) }
                 ))
-                Toggle("Reduce ambient motion", isOn: Binding(get: { settings.reduceMotion }, set: settings.setReduceMotion))
+                Toggle("Reduce ambient motion", isOn: Binding(get: { settings.reduceMotion }, set: { settings.setReduceMotion($0) }))
             }
         }
     }
@@ -44,7 +44,7 @@ struct XGlassPrivacySettingsPage: View {
         VStack(alignment: .leading, spacing: 26) {
             XGlassSettingsHeader(page: .privacy)
             XGlassSettingsGroup(title: "Feed", footer: nil) {
-                Toggle("Hide promoted posts", isOn: Binding(get: { settings.hidePromotedPosts }, set: settings.setHidePromotedPosts))
+                Toggle("Hide promoted posts", isOn: Binding(get: { settings.hidePromotedPosts }, set: { settings.setHidePromotedPosts($0) }))
             }
             XGlassSettingsGroup(title: "Account", footer: nil) {
                 XGlassSettingsValueRow(title: "Sign-in", value: "X.com", systemImage: "lock.shield", accent: settings.colors.accent)

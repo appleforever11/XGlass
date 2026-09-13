@@ -16,7 +16,7 @@ struct XGlassCommands: Commands {
             Toggle("Focus Mode", isOn: $workspace.isFocused)
                 .keyboardShortcut("f", modifiers: [.command, .shift])
             Toggle("Show Browser Toolbar", isOn: Binding(
-                get: { settings.showBrowserToolbar }, set: settings.setShowBrowserToolbar
+                get: { settings.showBrowserToolbar }, set: { settings.setShowBrowserToolbar($0) }
             ))
                 .keyboardShortcut("t", modifiers: [.command, .shift])
             Divider()
