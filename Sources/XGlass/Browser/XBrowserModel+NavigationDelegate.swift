@@ -4,6 +4,11 @@ import WebKit
 extension XBrowserModel: WKNavigationDelegate {
     func webView(_ webView: WKWebView, didStartProvisionalNavigation navigation: WKNavigation!) {
         hasUnsavedDraft = nil
+        if let navigation {
+            let identifier = ObjectIdentifier(navigation)
+            ignoredNavigationIDs.remove(identifier)
+            activeNavigationID = identifier
+        }
         monitorPageReadiness(in: webView)
     }
 
@@ -29,25 +34,48 @@ extension XBrowserModel: WKNavigationDelegate {
     }
 
     func webView(_ webView: WKWebView, didFail navigation: WKNavigation!, withError error: Error) {
-        guard (error as NSError).code != NSURLErrorCancelled else { return }
-        loadWatchdog.cancel()
-        let requestedRoute = pendingNavigationRoute ?? lastRequestedRoute
-        cancelPendingNavigation()
-        statusMessage = requestedRoute.map { "X could not finish loading \($0.rawValue)." } ?? error.localizedDescription
-        loadState = (error as NSError).code == NSURLErrorNotConnectedToInternet ? "Offline" : "Failed"
-        recordLoadEvent("\(loadState): navigation error code \((error as NSError).code)")
-        canRetry = true
+        handleNavigationFailure(in: webView, navigation: navigation, error: error)
     }
 
     func webView(_ webView: WKWebView, didFailProvisionalNavigation navigation: WKNavigation!, withError error: Error) {
-        guard (error as NSError).code != NSURLErrorCancelled else { return }
+        handleNavigationFailure(in: webView, navigation: navigation, error: error)
+    }
+
+    private func handleNavigationFailure(in webView: WKWebView, navigation: WKNavigation?, error: Error) {
+        let errorCode = (error as NSError).code
+        guard errorCode != NSURLErrorCancelled else { return }
+        guard isCurrentNavigation(navigation) else {
+            recordLoadEvent("Ignored stale navigation failure code \(errorCode)")
+            return
+        }
+
         loadWatchdog.cancel()
         let requestedRoute = pendingNavigationRoute ?? lastRequestedRoute
-        cancelPendingNavigation()
-        statusMessage = requestedRoute.map { "X could not finish loading \($0.rawValue)." } ?? error.localizedDescription
-        loadState = (error as NSError).code == NSURLErrorNotConnectedToInternet ? "Offline" : "Failed"
-        recordLoadEvent("\(loadState): navigation error code \((error as NSError).code)")
-        canRetry = true
+        let generation = loadGeneration
+        navigationFailureTask?.cancel()
+        navigationFailureTask = Task { @MainActor [weak self, weak webView] in
+            guard let self, let webView else { return }
+            let rendered = await XGlassPageProbe.readiness(in: webView)
+            guard !Task.isCancelled,
+                  self.webView === webView,
+                  self.loadGeneration == generation,
+                  self.isCurrentNavigation(navigation) else { return }
+
+            self.navigationFailureTask = nil
+            if rendered == true && !webView.isLoading {
+                self.loadState = "Ready"
+                self.statusMessage = nil
+                self.canRetry = false
+                self.recordLoadEvent("Navigation failure arrived after content rendered; keeping document")
+                return
+            }
+
+            self.cancelPendingNavigation()
+            self.statusMessage = requestedRoute.map { "X could not finish loading \($0.rawValue)." } ?? error.localizedDescription
+            self.loadState = errorCode == NSURLErrorNotConnectedToInternet ? "Offline" : "Failed"
+            self.recordLoadEvent("\(self.loadState): navigation error code \(errorCode)")
+            self.canRetry = true
+        }
     }
 
     func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
@@ -84,5 +112,13 @@ extension XBrowserModel: WKNavigationDelegate {
             || host.hasSuffix(".x.com")
             || host == "twitter.com"
             || host.hasSuffix(".twitter.com")
+    }
+
+    private func isCurrentNavigation(_ navigation: WKNavigation?) -> Bool {
+        guard let navigation else { return true }
+        let identifier = ObjectIdentifier(navigation)
+        if ignoredNavigationIDs.contains(identifier) { return false }
+        guard let activeNavigationID else { return true }
+        return identifier == activeNavigationID
     }
 }

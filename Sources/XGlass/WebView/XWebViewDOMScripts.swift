@@ -43,6 +43,6 @@ enum XGlassDOMScripts {
         )
         .replacingOccurrences(of: "__XGLASS_BASE_STYLES__", with: XGlassDOMBaseStyles.source)
         .replacingOccurrences(of: "__XGLASS_THEME_STYLES__", with: XGlassDOMThemeStyles.source)
-        return [layout, runtime].joined(separator: "\n")
+        return [layout, XGlassDOMComposerScript.source, XGlassDOMSearchScript.source, runtime].joined(separator: "\n")
     }
 }

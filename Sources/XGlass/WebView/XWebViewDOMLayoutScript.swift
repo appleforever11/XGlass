@@ -11,6 +11,10 @@ enum XGlassDOMLayoutScript {
   const addControlAttribute = "data-xglass-add-control";
   const addSurfaceAttribute = "data-xglass-add-surface";
   const composerSurfaceAttribute = "data-xglass-composer-surface";
+  const searchOverlayAttribute = "data-xglass-search-overlay";
+  const searchLayerAttribute = "data-xglass-search-layer";
+  const searchHiddenAttribute = "data-xglass-search-hidden";
+  const searchActiveAttribute = "data-xglass-search-active";
   const replyComposerAttribute = "data-xglass-reply-composer";
   const replySurfaceAttribute = "data-xglass-reply-surface";
   const replyControlAttribute = "data-xglass-reply-control";
@@ -133,9 +137,39 @@ enum XGlassDOMLayoutScript {
       roots.forEach((root) => addArticlesFromRoot(root, articles));
     }
 
+    const targets = new Set();
     articles.forEach((article) => {
       if (!isPromotedArticle(article)) return;
-      const target = adTarget(article);
+      targets.add(adTarget(article));
+    });
+
+    // Explore placements can be standalone modules instead of articles.
+    const placementSelector = '[data-testid="placementTracking"], [data-testid*="promot" i], ' +
+      '[data-testid*="sponsor" i], [aria-label="ad" i], [aria-label="promoted" i]';
+    const scanRoots = roots && roots.length ? roots : [primaryColumn];
+    scanRoots.forEach((root) => {
+      if (!root || root.nodeType !== 1) return;
+      if (root.matches(placementSelector)) targets.add(root.closest("article") || root);
+      root.querySelectorAll(placementSelector).forEach((node) => {
+        targets.add(node.closest("article") || node);
+      });
+      if (window.location.pathname.startsWith("/explore")) {
+        const links = new Set(root.querySelectorAll('a, [role="link"]'));
+        const containingLink = root.closest('a, [role="link"]');
+        if (containingLink) links.add(containingLink);
+        links.forEach((link) => {
+          const label = normalized(link.textContent);
+          if (label.length > 500 || !/\bpromoted by\b/.test(label)) return;
+          const parent = link.parentElement;
+          const isIsolatedPlacement = parent && parent !== primaryColumn &&
+            parent.querySelectorAll('a, [role="link"]').length === 1 &&
+            !parent.querySelector('article, input, [role="tablist"]');
+          targets.add(isIsolatedPlacement ? parent : link);
+        });
+      }
+    });
+
+    targets.forEach((target) => {
       if (target.getAttribute(hiddenAdAttribute) !== "true") {
         target.setAttribute(hiddenAdAttribute, "true");
       }
@@ -222,134 +256,7 @@ enum XGlassDOMLayoutScript {
     );
   }
 
-  function composerDescriptor(node) {
-    return [
-      node.getAttribute("data-testid"),
-      node.getAttribute("aria-label"),
-      node.getAttribute("placeholder"),
-      node.getAttribute("data-placeholder")
-    ].map(normalized).filter(Boolean).join(" ");
-  }
 
-  function isReplyComposerControl(node, articleRect) {
-    if (!isComposerControl(node)) return false;
-
-    const descriptor = composerDescriptor(node);
-    if (/post\s+your\s+reply|reply\s+to|reply/.test(descriptor)) return true;
-    if (!articleRect) return false;
-
-    const rect = node.getBoundingClientRect();
-    return rect.width > 0 && rect.height > 0 && rect.top >= articleRect.bottom - 12;
-  }
-
-  function isReplyButton(node) {
-    if (!node.matches('button, [role="button"]')) return false;
-
-    const values = [
-      node.getAttribute("data-testid"),
-      node.getAttribute("aria-label"),
-      node.getAttribute("title"),
-      node.textContent
-    ].map(normalized).filter(Boolean);
-
-    return values.some((value) =>
-      /tweetbutton/.test(value) || value === "reply" || /^reply\s/.test(value)
-    );
-  }
-
-  function paintReplyComposer(primaryColumn, reset = false) {
-    if (reset) {
-      primaryColumn.querySelectorAll(`[${replyComposerAttribute}="true"]`).forEach((node) => {
-        node.removeAttribute(replyComposerAttribute);
-      });
-      primaryColumn.querySelectorAll(`[${replySurfaceAttribute}="true"]`).forEach((node) => {
-        node.removeAttribute(replySurfaceAttribute);
-      });
-      primaryColumn.querySelectorAll(`[${replyControlAttribute}="true"]`).forEach((node) => {
-        node.removeAttribute(replyControlAttribute);
-      });
-      primaryColumn.querySelectorAll(`[${replyButtonAttribute}="true"]`).forEach((node) => {
-        node.removeAttribute(replyButtonAttribute);
-      });
-    }
-    const visibleDMContainer = Array.from(
-      primaryColumn.querySelectorAll('[data-testid="dm-container"]')
-    ).some(isVisible);
-    if (visibleDMContainer) return;
-
-    const columnRect = primaryColumn.getBoundingClientRect();
-    if (!columnRect.width || !columnRect.height) return;
-
-    const firstArticle = primaryColumn.querySelector("article[role=\"article\"], article");
-    const firstArticleRect = firstArticle?.getBoundingClientRect();
-    const visibleArticle = firstArticleRect && firstArticleRect.width > 0 && firstArticleRect.height > 0
-      ? firstArticleRect
-      : null;
-    const articleRect = visibleArticle;
-
-    const composerControls = Array.from(primaryColumn.querySelectorAll(
-      '[data-testid*="tweetTextarea"], [contenteditable="true"], [role="textbox"], ' +
-      'textarea, input'
-    )).filter((node) => {
-      const rect = node.getBoundingClientRect();
-      return rect.width > 0 && rect.height > 0;
-    });
-    const composerControl = composerControls.find((node) =>
-      isReplyComposerControl(node, articleRect)
-    );
-    if (!composerControl) return;
-
-    let current = composerControl;
-    let composer = null;
-    let fallback = null;
-    let fallbackArea = 0;
-    let opaqueArea = 0;
-    for (let depth = 0; current && current !== primaryColumn && depth < 16; depth += 1) {
-      const rect = current.getBoundingClientRect();
-      if (rect.width >= Math.max(280, columnRect.width * 0.68) &&
-          rect.height >= 52 && rect.height <= 460 &&
-          (!articleRect || rect.top >= articleRect.bottom - 24)) {
-        const area = rect.width * rect.height;
-        if (area > fallbackArea) {
-          fallback = current;
-          fallbackArea = area;
-        }
-        if (isOpaqueBlack(getComputedStyle(current).backgroundColor) && area > opaqueArea) {
-          composer = current;
-          opaqueArea = area;
-        }
-      }
-      current = current.parentElement;
-    }
-
-    composer = composer || fallback;
-    if (!composer) composer = composerControl.parentElement;
-    if (!composer) return;
-    markNode(composer, replyComposerAttribute);
-    markNode(composer, replySurfaceAttribute);
-    markNode(composerControl, replyControlAttribute);
-
-    const controlRect = composerControl.getBoundingClientRect();
-    const replyButton = Array.from(composer.querySelectorAll('button, [role="button"]'))
-      .find(isReplyButton) ||
-      Array.from(primaryColumn.querySelectorAll('button, [role="button"]'))
-        .filter(isReplyButton)
-        .filter((button) => {
-          const rect = button.getBoundingClientRect();
-          return rect.width > 0 && rect.height > 0 &&
-            rect.top >= controlRect.top - 80 &&
-            rect.bottom <= controlRect.bottom + 120 &&
-            rect.left >= controlRect.left - 80;
-        })
-        .sort((left, right) => {
-          const leftRect = left.getBoundingClientRect();
-          const rightRect = right.getBoundingClientRect();
-          return Math.abs(leftRect.top - controlRect.top) - Math.abs(rightRect.top - controlRect.top);
-        })[0];
-    if (replyButton) {
-      markNode(replyButton, replyButtonAttribute);
-    }
-  }
 
   function flattenTopBand(primaryColumn, columnRect, cutoff, topSection) {
     if (topSection) {
@@ -371,6 +278,11 @@ enum XGlassDOMLayoutScript {
 
     structuralNodes.forEach((node) => {
       if (node === topSection) return;
+
+      if (node.matches('[role="list"], [role="listbox"]') &&
+          node.closest('[role="combobox"][aria-expanded="true"]')) {
+        return;
+      }
 
       const rect = node.getBoundingClientRect();
       if (!isTopBandRect(rect, columnRect, cutoff)) return;
@@ -420,6 +332,12 @@ enum XGlassDOMLayoutScript {
   function paintTopSurface(primaryColumn, reset = false) {
     if (!primaryColumn) return;
     if (reset) clearTopMarkers(primaryColumn);
+    // Notification cells carry X's live unread background. They are not header
+    // controls, even when there is no article delimiting the first 420 points.
+    if (/^\/notifications(?:\/|$)/.test(window.location.pathname)) {
+      paintStickyHeaders(primaryColumn);
+      return;
+    }
     paintReplyComposer(primaryColumn, reset);
     if (primaryColumn.querySelector('[data-testid="dm-container"]')) return;
 
@@ -461,6 +379,24 @@ enum XGlassDOMLayoutScript {
     });
 
     flattenTopBand(primaryColumn, columnRect, cutoff, topSection);
+    paintStickyHeaders(primaryColumn);
+    paintSearchOverlay(primaryColumn);
+  }
+
+  function paintStickyHeaders(primaryColumn) {
+    primaryColumn.querySelectorAll('[role="tablist"]').forEach((tabs) => {
+      if (tabs.closest('article, [data-testid="toolBar"], [data-testid="floatingActionBar"]')) return;
+      let current = tabs;
+      for (let depth = 0; current && current !== primaryColumn && depth < 8; depth += 1) {
+        const rect = current.getBoundingClientRect();
+        if (rect.height > 180) break;
+        // X uses both sticky and fixed wrappers; paint the complete tab row, including +.
+        setImportantStyle(current, "background", "var(--xglass-surface)");
+        setImportantStyle(current, "backdrop-filter", "none");
+        setImportantStyle(current, "-webkit-backdrop-filter", "none");
+        current = current.parentElement;
+      }
+    });
   }
 
   function currentRouteKey() {

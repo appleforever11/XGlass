@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.2.0
+
+- Hardened startup and recovery with rendered-content readiness checks, bounded retries, draft protection, session restart, compatibility recovery, and content-free Diagnostics telemetry.
+- Added a deterministic 600 × 1,059 point compact launch frame that ignores restored full-screen and maximized state while preserving normal user resizing.
+- Added live notification unread badges, new-post highlights, reliable badge clearing, native image saves with remembered folders, Find in Page, and the Command-K quick switcher.
+- Added Golden Gate, Big Sur, Mojave Dusk, Sonoma Hills, Tahoe Tide, Violet Bloom, and additional macOS-inspired themes with accent customization and responsive layout.
+- Tightened WebKit presentation scheduling, scroll restoration, media readiness, traffic-light layout, logo placement, and signed bundle verification.
+
 ## 1.1.2
 
 - Published the complete 1.1 refresh with portable release checks for both native SwiftPM and Xcode-backed macOS runners.

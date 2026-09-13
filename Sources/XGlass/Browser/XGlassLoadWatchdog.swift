@@ -21,15 +21,49 @@ final class XGlassLoadWatchdog {
         }
         return true;
       };
+      const loadedMedia = node => {
+        if (!node || !visible(node)) return false;
+        const tag = node.tagName?.toLowerCase();
+        if (tag === 'img') return node.complete && node.naturalWidth > 0;
+        return true;
+      };
       if (visible(document.querySelector('input[type="password"], input[autocomplete="one-time-code"], input[autocomplete="username"]'))) return true;
       const main = document.querySelector('[data-testid="primaryColumn"], main, [role="main"]');
-      if (!main) return false;
       const statusID = location.pathname.match(/\/status\/(\d+)/)?.[1];
-      if (statusID) return Array.from(main.querySelectorAll('article')).some(article =>
-        visible(article) && Array.from(article.querySelectorAll('a[href]')).some(link => {
-          try { return new URL(link.href, location.href).pathname.match(/\/status\/(\d+)(?:\/|$)/)?.[1] === statusID; }
-          catch (_) { return false; }
-        }));
+      if (statusID) {
+        const exactPost = main && Array.from(main.querySelectorAll('article')).some(article =>
+          visible(article) && Array.from(article.querySelectorAll('a[href]')).some(link => {
+            try { return new URL(link.href, location.href).pathname.match(/\/status\/(\d+)(?:\/|$)/)?.[1] === statusID; }
+            catch (_) { return false; }
+          }));
+        if (exactPost) return true;
+
+        // X renders photo/video lightboxes outside the primary article. The
+        // URL is already on the requested status, so a visible loaded media
+        // surface is a valid terminal state even when the modal has no post
+        // link in its accessibility tree.
+        const modal = document.querySelector('[role="dialog"], [aria-modal="true"], [data-testid*="photoModal"], [data-testid*="mediaModal"]');
+        if (modal && visible(modal)) {
+          if (Array.from(modal.querySelectorAll('[role="progressbar"]')).some(visible)) return false;
+          if (Array.from(modal.querySelectorAll('img, video, canvas, [role="img"]')).some(loadedMedia)) return true;
+          if (modal.innerText.trim().length > 20 && Array.from(modal.querySelectorAll('button, a, [role="button"]')).some(visible)) return true;
+        }
+
+        // Some X builds use a full-page media surface without a dialog role.
+        // Limit this fallback to media URLs so a stale image from a previous
+        // page cannot satisfy an exact post request.
+        const mediaPath = /\/(?:photo|video|media)(?:\/|$)/.test(location.pathname);
+        if (mediaPath) {
+          const visibleMedia = Array.from(document.querySelectorAll('img, video, canvas, [role="img"]')).some(loadedMedia);
+          const renderedStatusSurface = document.body.innerText.trim().length > 20 &&
+            Array.from(document.querySelectorAll('button, a, [role="button"]')).some(visible);
+          const visibleProgress = Array.from(document.querySelectorAll('[role="progressbar"]')).some(visible);
+          const visibleFailure = Array.from(document.querySelectorAll('[role="alert"], [data-testid*="error"]')).some(visible);
+          if (!visibleFailure && !visibleProgress && (visibleMedia || renderedStatusSurface)) return true;
+        }
+        return false;
+      }
+      if (!main) return false;
       if (Array.from(main.querySelectorAll('article, [data-testid="tweet"], [data-testid="emptyState"]')).some(visible)) return true;
       if (Array.from(main.querySelectorAll('[role="progressbar"]')).some(visible)) return false;
       return visible(main) && main.innerText.trim().length > 40 &&

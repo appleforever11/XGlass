@@ -3,6 +3,7 @@ import SwiftUI
 struct XGlassRootView: View {
     @EnvironmentObject private var browser: XBrowserModel
     @EnvironmentObject private var settings: XGlassSettingsStore
+    @EnvironmentObject private var workspace: XGlassWorkspaceState
 
     var body: some View {
         GeometryReader { proxy in
@@ -19,31 +20,33 @@ struct XGlassRootView: View {
                 )
                 .ignoresSafeArea()
 
-                HStack(spacing: layout.gutter) {
-                    XGlassNavigationRail(
-                        browser: browser,
-                        settings: settings,
-                        showsLabels: layout.showsRouteLabels
-                    )
-                    .frame(width: layout.railWidth)
+                HStack(spacing: 0) {
+                    if !workspace.isFocused {
+                        XGlassNavigationRail(
+                            browser: browser,
+                            settings: settings,
+                            showsLabels: layout.showsRouteLabels
+                        )
+                        .frame(width: layout.railWidth)
+                        Divider().overlay(settings.colors.stroke.opacity(0.65))
+                    }
 
                     XGlassBrowserSurface(
                         browser: browser,
                         settings: settings,
                         isCompact: layout.isCompact,
-                        showsToolbar: settings.showBrowserToolbar
+                        showsToolbar: settings.showBrowserToolbar || workspace.isFocused
                     )
                 }
-                .padding(.horizontal, layout.outerPadding)
-                .padding(.top, 10)
-                .padding(.bottom, layout.outerPadding)
 
                 XGlassStatusOverlay(browser: browser, colors: settings.colors)
                     .padding(.trailing, layout.outerPadding + 16)
                     .padding(.bottom, layout.outerPadding + 16)
             }
             .background(settings.colors.window)
-            .background(XGlassWindowSizingView())
+        }
+        .sheet(isPresented: $workspace.showsQuickSwitcher) {
+            XGlassQuickSwitcher()
         }
     }
 }

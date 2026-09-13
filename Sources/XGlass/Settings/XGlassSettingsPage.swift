@@ -12,7 +12,7 @@ enum XGlassSettingsPage: String, CaseIterable, Identifiable {
     var title: String {
         switch self {
         case .appearance: "Appearance"
-        case .navigation: "Navigation"
+        case .navigation: "Reading & Layout"
         case .privacy: "Privacy"
         case .diagnostics: "Diagnostics"
         case .about: "About XGlass"
@@ -22,9 +22,9 @@ enum XGlassSettingsPage: String, CaseIterable, Identifiable {
     var subtitle: String {
         switch self {
         case .appearance: "Themes, glass, and motion"
-        case .navigation: "Routes, recovery, and sidebar"
-        case .privacy: "Local controls and account boundaries"
-        case .diagnostics: "Non-destructive quality checks"
+        case .navigation: "Page size, window, and playback"
+        case .privacy: "Feed and account"
+        case .diagnostics: "Interface health"
         case .about: "Version and release details"
         }
     }
@@ -32,7 +32,7 @@ enum XGlassSettingsPage: String, CaseIterable, Identifiable {
     var systemImage: String {
         switch self {
         case .appearance: "paintbrush.pointed.fill"
-        case .navigation: "arrow.triangle.turn.up.right.diamond.fill"
+        case .navigation: "textformat.size"
         case .privacy: "hand.raised.fill"
         case .diagnostics: "stethoscope"
         case .about: "info.circle.fill"

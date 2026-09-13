@@ -5,6 +5,7 @@ import Sparkle
 @MainActor
 final class XGlassAppDelegate: NSObject, NSApplicationDelegate {
     private let updaterController: SPUStandardUpdaterController
+    private let windowLaunchController = XGlassWindowLaunchController()
 
     override init() {
         updaterController = SPUStandardUpdaterController(
@@ -17,5 +18,17 @@ final class XGlassAppDelegate: NSObject, NSApplicationDelegate {
 
     func checkForUpdates() {
         updaterController.checkForUpdates(nil)
+    }
+
+    func applicationDidFinishLaunching(_ notification: Notification) {
+        windowLaunchController.start()
+    }
+
+    func applicationDidBecomeActive(_ notification: Notification) {
+        windowLaunchController.refresh()
+    }
+
+    func applicationWillTerminate(_ notification: Notification) {
+        windowLaunchController.stop()
     }
 }

@@ -4,13 +4,15 @@
 
 Build and packaging now preserve the active development instance instead of killing every XGlass process. Modes are validated before work; the packager checks again before replacing the bundle. A real build-only attempt was rejected while the running XGlass instance remained intact. Signed-process fixtures cover literal paths, arguments and symlink aliases. Existing source and status edits remain preserved.
 
-Updated 2026-09-05 by the Codex workspace audit.
+Updated 2026-09-06 after the reload-stability pass.
 
 Existing work covers WebKit loading/recovery, workspace restoration, unread indicators, settings, and theme components. The pre-existing diff is retained and separately checkpointed. The active source is this directory; `/Users/kevinhowe/Codex Projects Restored/XGlass` is the older reference copy.
 
 ## Validation record
 
 Audit validation: 36 Swift tests passed using `swift test --build-system native --scratch-path /Users/kevinhowe/Library/Caches/CodexAuditBuild/XGlass`. The first default-build-engine run stalled and was stopped; this isolated fallback completed. This is a verified fallback for the current toolchain, not a permanent mandate to use the deprecated native engine. No new full live UI pass was performed by this setup task.
+
+Latest stability milestone: `./script/test.sh` passed 36 tests, `./script/build_and_run.sh --verify` staged and launched `/Users/kevinhowe/Documents/ChatGPT/XGlass macOS App/dist/XGlass.app`, and live inspection showed rendered Home timeline content. Slow-load and web-process-termination paths now surface an explicit Retry state; they no longer reload automatically. Draft protection now treats a focused editor as active, including an empty comment field before the first character is entered.
 
 See [SMOKE_CHECK.md](SMOKE_CHECK.md) for the repeatable workflow. Current audit logs and recovery references are recorded in `/Users/kevinhowe/Documents/ChatGPT/Audit skill.md files/followup/`. Build/tests and live UI observations must be reported separately. Update this section with subsequent results rather than treating a historical check as current.
 
@@ -48,3 +50,19 @@ Validation: 53 native SwiftPM tests passed in the isolated cache, including 20 n
 Signed `/Users/kevinhowe/Documents/ChatGPT/XGlass macOS App/dist/XGlass.app` 1.1.2 rebuilt/launched. Live: Home loaded, a post kept Home selected rather than Profile, Restart Web Session returned to the same post with sign-in intact, Explore → Home worked, and the image picker recalled X photos. A live image save produced a valid 900×658 JPEG and showed ongoing saving feedback. Final Diagnostics UI was visually inspected: HTTP 200, document/DOM/load stages, zero reported resource/JS errors, and Ready. This is a single observed startup, not an aggregate speed claim.
 
 Limits: real sleep/wake, weak-link network conditions, multi-hour endurance, and a controlled authenticated notification read cycle are not established by these fixtures. No posts/likes/messages were sent and notification read state was not changed for QA. Prior unrelated changes remain preserved; tests cover the integrated working tree.
+
+## 2026-09-12 — Rendered-media loading recovery
+
+Reproduced the intermittent warning with a visible signed-in X photo lightbox: the image had loaded, but the readiness probe required an article link and raised the Slow recovery banner. Photo/video lightboxes now count as ready when visible media has loaded; the exact-post check remains strict for ordinary status URLs, and the media fallback is limited to media paths. Home route watchers also accept a rendered Home surface when X keeps the same SPA URL. Main-frame WebKit failures are navigation-identity gated and receive one bounded content probe before XGlass reports a failure. Probe timeout tasks are cancelled after the first reply.
+
+Validation: 57 native SwiftPM tests passed in `/Users/kevinhowe/Library/Caches/CodexAuditBuild/XGlass`, including dialog and no-dialog-role full-page media readiness, progress-indicator rejection, rendered-document failure recovery, genuine offline recovery, and the existing 20-cycle stability fixture. `XGLASS_SWIFT_BUILD_PATH=/Users/kevinhowe/Library/Caches/CodexAuditBuild/XGlass XGLASS_SWIFT_BUILD_SYSTEM=native ./script/build_and_run.sh --verify` rebuilt, staged, launched, and signed-verified `/Users/kevinhowe/Documents/ChatGPT/XGlass macOS App/dist/XGlass.app`. Live inspection opened an authenticated X photo lightbox and showed the image with no recovery banner; the Home timeline then remained rendered. OSLog loading events are now normalized and content-free.
+
+Limits: this verifies the affected lightbox path and one signed launch, not multi-hour or weak-network endurance. No posts, likes, messages, or notification read state were changed. Existing unrelated working-tree edits remain preserved.
+
+## 2026-09-13 — Deterministic startup window frame
+
+The compact launch frame is now owned by `XGlassAppDelegate` and applies after `WindowGroup` creates the actual `NSWindow`. The controller ignores AppKit's saved window state, disables restoration on the main window, filters the hidden 500 × 500 `TUINSWindow` helper, and uses a bounded five-second scan plus 0.15/0.55-second correction checks. A restored full-screen or zoomed state is unwound only during startup; after the frame is applied, ordinary user resizing and full-screen remain available. The target is 600 × 1,059 points, positioned at the display's left edge with the existing 46-point titlebar offset in the window-server bounds; smaller displays are clamped by `XGlassStartupWindowFrame`.
+
+Validation: 57 native SwiftPM tests passed in `/Users/kevinhowe/Library/Caches/CodexAuditBuild/XGlass`. `XGLASS_SWIFT_BUILD_PATH=/Users/kevinhowe/Library/Caches/CodexAuditBuild/XGlass XGLASS_SWIFT_BUILD_SYSTEM=native ./script/build_and_run.sh --verify` rebuilt, staged, launched, and signed-verified `/Users/kevinhowe/Documents/ChatGPT/XGlass macOS App/dist/XGlass.app`. Live CUA inspection showed the authenticated Home timeline in the compact window; CoreGraphics measured the XGlass window at `Width = 600`, `Height = 1059`, `X = 0`, `Y = 46`. Entering full screen, quitting, and relaunching returned to the normal compact frame with traffic-light controls.
+
+No posts, likes, messages, notification read-state changes, or account-data resets were made. The current display and a full-screen persistence cycle are verified; multi-monitor placement, sleep/wake, weak-network endurance, and multi-hour sessions remain unverified. A local commit was not created because the existing Git object pack is truncated; all changes remain preserved in the working tree.

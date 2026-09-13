@@ -47,6 +47,9 @@ final class XBrowserModel: NSObject, ObservableObject {
     var loadGeneration = UUID()
     var readinessTask: Task<Void, Never>?
     var lifecycleObservers: [NSObjectProtocol] = []
+    var navigationFailureTask: Task<Void, Never>?
+    var activeNavigationID: ObjectIdentifier?
+    var ignoredNavigationIDs = Set<ObjectIdentifier>()
 
     override init() {
         super.init()
@@ -58,6 +61,7 @@ final class XBrowserModel: NSObject, ObservableObject {
 
     deinit {
         pendingNavigationTask?.cancel()
+        navigationFailureTask?.cancel()
     }
 
     func attach(_ webView: WKWebView) {
@@ -65,6 +69,8 @@ final class XBrowserModel: NSObject, ObservableObject {
 
         observations.removeAll()
         self.webView = webView
+        activeNavigationID = nil
+        ignoredNavigationIDs.removeAll()
         webView.navigationDelegate = self
         webView.uiDelegate = self
         installLifecycleMonitoring()
@@ -368,6 +374,25 @@ final class XBrowserModel: NSObject, ObservableObject {
                   self.webView === webView else { return }
 
             if let url = webView.url, XRoute.match(url: url) == route {
+                self.recordLoadEvent("Navigation \(route.rawValue) completed by URL")
+                self.completeNavigation()
+                return
+            }
+
+            // Home can remain on X's root URL while the SPA swaps the visible
+            // timeline. A rendered primary column is enough to finish that
+            // request; requiring a URL change here leaves a usable page with
+            // a stale timeout banner. Keep the fallback scoped to Home so a
+            // generic article cannot incorrectly satisfy Profile or Lists.
+            let currentPath = webView.url?.path.lowercased() ?? ""
+            let isHomeURL = currentPath == "/" || currentPath.hasPrefix("/home")
+            if route == .home,
+               isHomeURL,
+               await XGlassPageProbe.readiness(in: webView) == true,
+               !webView.isLoading,
+               self.pendingNavigationID == id,
+               self.webView === webView {
+                self.recordLoadEvent("Navigation Home completed by content probe")
                 self.completeNavigation()
                 return
             }
@@ -384,6 +409,8 @@ final class XBrowserModel: NSObject, ObservableObject {
     private func completeNavigation() {
         pendingNavigationTask?.cancel()
         pendingNavigationTask = nil
+        navigationFailureTask?.cancel()
+        navigationFailureTask = nil
         pendingNavigationID = nil
         pendingNavigationRoute = nil
         statusMessage = nil
@@ -394,9 +421,16 @@ final class XBrowserModel: NSObject, ObservableObject {
         loadGeneration = UUID()
         readinessTask?.cancel()
         loadWatchdog.cancel()
+        navigationFailureTask?.cancel()
+        navigationFailureTask = nil
         pendingNavigationTask?.cancel()
         pendingNavigationTask = nil
         pendingNavigationID = nil
         pendingNavigationRoute = nil
+        if let activeNavigationID {
+            ignoredNavigationIDs.insert(activeNavigationID)
+            if ignoredNavigationIDs.count > 32 { ignoredNavigationIDs.removeFirst() }
+            self.activeNavigationID = nil
+        }
     }
 }

@@ -131,6 +131,15 @@ enum XGlassDOMSchedulingScript {
     );
   }
 
+  function mutationTouchesSearch(record) {
+    const target = mutationElement(record.target);
+    if (!target) return false;
+
+    return target.matches(
+      '[role="combobox"], [role="list"], [role="listbox"], [role="menu"]'
+    ) || Boolean(target.closest('[role="combobox"]'));
+  }
+
   function mutationRoots(record, primaryColumn) {
     const roots = [];
     const target = mutationElement(record.target);
@@ -161,7 +170,14 @@ enum XGlassDOMSchedulingScript {
       const roots = Array.from(pendingMutationRoots);
       pendingMutationRoots.clear();
       lastPaintAt = performance.now();
+      const started = performance.now();
       applyOverrides(reasons, roots);
+      const duration = performance.now() - started;
+      const metrics = window.__xglassPerformance || { paints: 0, totalMs: 0, maxMs: 0 };
+      metrics.paints += 1;
+      metrics.totalMs += duration;
+      metrics.maxMs = Math.max(metrics.maxMs, duration);
+      window.__xglassPerformance = metrics;
     });
   }
 
@@ -175,8 +191,12 @@ enum XGlassDOMSchedulingScript {
     }
 
     roots.forEach((root) => {
-      if (root) pendingMutationRoots.add(root);
+      if (root?.isConnected && pendingMutationRoots.size < 128) pendingMutationRoots.add(root);
     });
+    if (pendingMutationRoots.size >= 128) {
+      pendingReasons |= paintFull;
+      pendingMutationRoots.clear();
+    }
 
     const elapsed = performance.now() - lastPaintAt;
     const delay = Math.max(0, minimumPaintInterval - elapsed);
@@ -201,20 +221,19 @@ enum XGlassDOMSchedulingScript {
     const primaryColumn = findPrimaryColumn();
 
     records.forEach((record) => {
+      if (record.type === "attributes") {
+        if (mutationTouchesSearch(record)) reasons |= paintTop;
+        return;
+      }
       if (record.type !== "childList") return;
-      if (mutationMayChangePrimary(record)) {
+      if (!primaryColumn || !primaryColumn.isConnected || mutationMayChangePrimary(record)) {
         reasons |= paintFull;
         return;
       }
-      if (!primaryColumn) {
-        reasons |= paintFull;
-        return;
-      }
-
       const target = mutationElement(record.target);
       if (!target || (target !== primaryColumn && !primaryColumn.contains(target))) return;
 
-      reasons |= paintAds;
+      if (window.__xglassPreferences.hidePromotedPosts !== false) reasons |= paintAds;
       if (mutationTouchesTop(record)) reasons |= paintTop;
       roots.push(...mutationRoots(record, primaryColumn));
     });
@@ -223,7 +242,9 @@ enum XGlassDOMSchedulingScript {
   });
   const observerOptions = {
     childList: true,
-    subtree: true
+    subtree: true,
+    attributes: true,
+    attributeFilter: ["aria-expanded", "aria-hidden", "aria-controls", "aria-owns", "class", "data-state", "hidden"]
   };
   if (!document.hidden) observer.observe(document.documentElement, observerOptions);
 

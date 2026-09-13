@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="docs/media/xglass-app-icon.png" alt="XGlass app icon" width="180">
+</p>
+
 # XGlass
 
 XGlass is an Apple Silicon macOS client shell for X.com with a native SwiftUI
@@ -6,10 +10,6 @@ session, so sign-in, two-factor authentication, and account controls remain
 handled by X.com rather than a separate API credential flow.
 
 ## Preview
-
-<p align="center">
-  <img src="docs/media/xglass-app-icon.png" alt="XGlass app icon" width="180">
-</p>
 
 <p align="center">
   <img src="docs/media/xglass-app-window.png" alt="XGlass macOS app window showing the X home feed" width="560">
@@ -23,6 +23,22 @@ After installation, use **XGlass > Check for Updates...** to check the
 GitHub-hosted Sparkle appcast. Updates are accepted only when signed with the
 embedded Sparkle public key.
 
+## Workspace controls
+
+- **Command-K:** quick switcher for navigation, actions, and X search.
+- **Command-1 through Command-7:** Home, Explore, Notifications, Messages,
+  Bookmarks, Lists, and Profile.
+- **Command-Shift-F:** focus mode; **Command-Shift-T:** show or hide the toolbar.
+- **Command-plus/minus/0:** reading zoom and reset.
+- **XGlass > Settings:** searchable theme gallery, favorites, custom accent,
+  reading size, feed width, background media suspension, and diagnostics.
+
+Themes and reading preferences persist across launches. Background media is
+suspended when the window is minimized or fully obscured, or the app is hidden,
+unless disabled in Settings. Image saving uses the native save panel and unique
+suggested filenames. Search overlays have an opaque surface so the feed remains
+separate from suggestions.
+
 ## Build locally
 
 ```sh
@@ -33,7 +49,7 @@ swift package resolve
 
 The build script stages the executable, icon, and `Sparkle.framework` updater
 helpers into a complete `.app` bundle. `./script/build_and_run.sh --verify`
-launches and verifies the local bundle. `./script/package_release.sh 1.1.2`
+launches and verifies the local bundle. `./script/package_release.sh 1.2.0`
 creates the Sparkle-compatible arm64 ZIP, and `./script/package_dmg.sh` creates
 the installable DMG.
 

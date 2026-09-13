@@ -12,6 +12,8 @@ enum XGlassDOMThemeStyles {
         --xglass-border: ${theme.border || "rgba(190, 235, 231, 0.16)"};
         --xglass-incoming-bubble: ${theme.incomingBubble || "rgba(240, 249, 248, 0.16)"};
         --xglass-outgoing-bubble: ${theme.outgoingBubble || "rgba(48, 156, 161, 0.50)"};
+        --xglass-surface: ${theme.surface || "#102832"};
+        --xglass-accent-foreground: ${theme.accentForeground || "#071C22"};
       }
 
       html {
@@ -44,14 +46,6 @@ enum XGlassDOMThemeStyles {
 
       [data-xglass-primary-column="true"] [data-testid="cellInnerDiv"] {
         border-color: var(--xglass-border) !important;
-      }
-
-      [data-xglass-primary-column="true"] article :is(img, video) {
-        transition: filter 140ms ease-out !important;
-      }
-
-      [data-xglass-primary-column="true"] article :is(img, video):hover {
-        filter: brightness(1.025) saturate(1.02) !important;
       }
 
       [data-xglass-top-band="true"] [role="tab"][aria-selected="true"]::after {
@@ -118,13 +112,13 @@ enum XGlassDOMThemeStyles {
       [data-xglass-reply-composer="true"] {
         background: linear-gradient(
           180deg,
-          color-mix(in srgb, var(--xglass-band-top) 62%, var(--xglass-accent) 23%, var(--xglass-text) 15%),
-          color-mix(in srgb, var(--xglass-band-bottom) 62%, var(--xglass-accent) 23%, var(--xglass-text) 15%)
+          var(--xglass-surface),
+          var(--xglass-surface)
         ) !important;
         background-image: linear-gradient(
           180deg,
-          color-mix(in srgb, var(--xglass-band-top) 62%, var(--xglass-accent) 23%, var(--xglass-text) 15%),
-          color-mix(in srgb, var(--xglass-band-bottom) 62%, var(--xglass-accent) 23%, var(--xglass-text) 15%)
+          var(--xglass-surface),
+          var(--xglass-surface)
         ) !important;
         border-top-color: var(--xglass-border) !important;
         border-bottom-color: var(--xglass-border) !important;
@@ -135,13 +129,13 @@ enum XGlassDOMThemeStyles {
       [data-xglass-reply-surface="true"] {
         background: linear-gradient(
           180deg,
-          color-mix(in srgb, var(--xglass-band-top) 62%, var(--xglass-accent) 23%, var(--xglass-text) 15%),
-          color-mix(in srgb, var(--xglass-band-bottom) 62%, var(--xglass-accent) 23%, var(--xglass-text) 15%)
+          var(--xglass-surface),
+          var(--xglass-surface)
         ) !important;
         background-image: linear-gradient(
           180deg,
-          color-mix(in srgb, var(--xglass-band-top) 62%, var(--xglass-accent) 23%, var(--xglass-text) 15%),
-          color-mix(in srgb, var(--xglass-band-bottom) 62%, var(--xglass-accent) 23%, var(--xglass-text) 15%)
+          var(--xglass-surface),
+          var(--xglass-surface)
         ) !important;
         border-top-color: var(--xglass-border) !important;
         border-bottom-color: var(--xglass-border) !important;
@@ -275,5 +269,76 @@ enum XGlassDOMThemeStyles {
         opacity: 1 !important;
         filter: brightness(1.06) !important;
       }
+
+      /* One opaque surface prevents scrolling text from showing through sticky controls. */
+      [data-xglass-top-band="true"] {
+        background: var(--xglass-surface) !important;
+        background-image: none !important;
+        backdrop-filter: none !important;
+        -webkit-backdrop-filter: none !important;
+        border-radius: 0 !important;
+        box-shadow: inset 0 -1px 0 var(--xglass-border) !important;
+      }
+
+      [data-xglass-primary-column="true"] [role="tablist"] [role="tab"] {
+        color: var(--xglass-muted) !important;
+        position: relative;
+      }
+
+      [data-xglass-primary-column="true"] [role="tablist"] [role="tab"][aria-selected="true"] {
+        color: var(--xglass-text) !important;
+      }
+
+      [data-xglass-primary-column="true"] [role="tablist"] [role="tab"][aria-selected="true"]::after {
+        content: "";
+        position: absolute;
+        bottom: 2px;
+        left: 32%;
+        right: 32%;
+        height: 3px;
+        border-radius: 3px;
+        background: var(--xglass-accent) !important;
+      }
+
+      [data-xglass-primary-column="true"] [data-testid^="tweetTextarea"] {
+        color: var(--xglass-text) !important;
+        -webkit-text-fill-color: var(--xglass-text) !important;
+        caret-color: var(--xglass-accent) !important;
+      }
+
+      [data-xglass-primary-column="true"] [data-testid^="tweetTextarea"] [data-text="true"] {
+        color: inherit !important;
+        -webkit-text-fill-color: inherit !important;
+      }
+
+      [data-xglass-primary-column="true"] [data-testid*="tweetButton"],
+      [data-xglass-primary-column="true"] [data-xglass-reply-button="true"] {
+        color: var(--xglass-accent-foreground) !important;
+        -webkit-text-fill-color: var(--xglass-accent-foreground) !important;
+        background: var(--xglass-accent) !important;
+        border-color: transparent !important;
+        box-shadow: none !important;
+      }
+
+      [data-xglass-primary-column="true"] [data-testid*="tweetButton"] *,
+      [data-xglass-primary-column="true"] [data-xglass-reply-button="true"] * {
+        color: inherit !important;
+        -webkit-text-fill-color: inherit !important;
+      }
+
+      [data-xglass-primary-column="true"] [data-testid*="tweetButton"]:is(:disabled, [aria-disabled="true"]),
+      [data-xglass-primary-column="true"] [data-xglass-reply-button="true"]:is(:disabled, [aria-disabled="true"]) {
+        background: color-mix(in srgb, var(--xglass-surface) 82%, var(--xglass-text)) !important;
+        color: var(--xglass-muted) !important;
+        -webkit-text-fill-color: var(--xglass-muted) !important;
+        opacity: 1 !important;
+      }
+
+      [data-xglass-primary-column="true"] [data-testid="toolBar"] svg,
+      [data-xglass-top-control="true"] svg {
+        stroke: none !important;
+        fill: currentColor !important;
+      }
+
 """#
 }

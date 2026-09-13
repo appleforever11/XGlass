@@ -69,7 +69,12 @@ final class XGlassStabilityStressTests: XCTestCase {
             XCTAssertEqual(model.loadState,"Ready", "cycle \(cycle)")
             XCTAssertFalse(model.canRetry)
             if cycle == 10 {
+                _ = try await view.evaluateJavaScript("document.body.innerHTML='<main><div role=progressbar></div></main>'; 'ok'")
                 model.webView(view, didFailProvisionalNavigation:nil, withError:URLError(.notConnectedToInternet))
+                for _ in 0..<30 {
+                    if model.loadState == "Offline" { break }
+                    try await Task.sleep(for: .milliseconds(100))
+                }
                 XCTAssertEqual(model.loadState,"Offline")
                 XCTAssertTrue(model.canRetry)
             }

@@ -17,21 +17,15 @@ struct XGlassSettingsGroup<Content: View>: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             Text(title)
-                .font(.title3.weight(.bold))
+                .font(.system(size: 13, weight: .semibold))
                 .padding(.horizontal, 2)
 
             VStack(alignment: .leading, spacing: 14) {
                 content()
             }
-            .padding(14)
-            .background(
-                settings.colors.card.opacity(0.26),
-                in: RoundedRectangle(cornerRadius: 14, style: .continuous)
-            )
-            .overlay {
-                RoundedRectangle(cornerRadius: 14, style: .continuous)
-                    .stroke(settings.colors.stroke.opacity(0.78), lineWidth: 1)
-            }
+            .padding(.vertical, 14)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .overlay(alignment: .top) { Divider().overlay(settings.colors.stroke.opacity(0.6)) }
 
             if let footer, !footer.isEmpty {
                 Text(footer)
@@ -65,6 +59,6 @@ struct XGlassSettingsWindowConfigurator: NSViewRepresentable {
         window.isOpaque = false
         window.backgroundColor = NSColor.windowBackgroundColor
         window.hasShadow = true
-        window.minSize = NSSize(width: 900, height: 620)
+        window.minSize = NSSize(width: 760, height: 600)
     }
 }

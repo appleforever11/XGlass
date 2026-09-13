@@ -5,15 +5,10 @@ struct XGlassSettingsHeader: View {
 
     var body: some View {
         HStack(alignment: .top, spacing: 14) {
-            SettingsIconBadge(systemName: page.systemImage, tint: page.tint, size: 48)
-
             VStack(alignment: .leading, spacing: 4) {
                 Text(page.title)
-                    .font(.system(size: 28, weight: .bold, design: .rounded))
+                    .font(.system(size: 23, weight: .bold))
                     .foregroundStyle(.primary)
-                Text(page.subtitle)
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
             }
 
             Spacer(minLength: 0)

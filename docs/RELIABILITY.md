@@ -10,9 +10,13 @@ Diagnostics includes loading state, bounded local timing history, a copyable rep
 
 Appearance adds a macOS collection: Golden Gate, Big Sur, Mojave Dusk, and Sonoma Hills. Golden Gate uses the existing Codex Studio palette, including #17110D, #2A1D17, #E3A955, and #FFF7E9. These are color themes, not bundled wallpaper images.
 
+### Deterministic startup frame
+
+The main `WindowGroup` launch frame is applied by the AppKit app delegate after the real XGlass window exists, rather than by a view update that can run before window creation. `ApplePersistenceIgnoreState` and `NSQuitAlwaysKeepsWindows` prevent an old maximized or full-screen frame from becoming the next launch's starting state. During the bounded startup window, the controller exits a restored full-screen or zoomed state, applies a 600 × 1,059 point frame (clamped to a smaller display), and performs two delayed corrections to cover AppKit restoration races. It ignores hidden SwiftUI helper windows and stops correcting once the user begins resizing. Website data, cookies, preferences, drafts, and the current session are not cleared as part of this policy; users can still resize or enter full screen after launch.
+
 ## Verification
 
-Run `./script/test.sh` for the build and WebKit fixtures, then `./script/build_and_run.sh --verify` for the signed app. Fixtures cover search plus spinner, authentication, requested-post identity, draft detection, stale watchdog cancellation, compatibility script selection, palette consistency, and bounded diagnostic history.
+Run `./script/test.sh` for the build and WebKit fixtures, then `./script/build_and_run.sh --verify` for the signed app. Fixtures cover search plus spinner, authentication, requested-post identity, dialog and full-page photo lightbox readiness (including progress-indicator rejection), rendered-document recovery after a navigation callback, draft detection, stale watchdog cancellation, compatibility script selection, palette consistency, and bounded diagnostic history.
 
 Live follow-up scenarios: repeat feed → post → back; rapidly switch destinations; reload a scrolled page; keep an unsent draft while attempting recovery; reconnect after an interrupted connection; wake after sleep; and scroll for an extended session while comparing layout metrics, CPU, and memory. Avoid changing the whole Mac's connection or terminating unrelated WebKit processes to test these scenarios.
 
@@ -31,7 +35,7 @@ Image saves use an ephemeral disk download, destination-scoped cookies (also on 
 
 Retry and Navigation → Reload from Origin (Shift-Command-R) revalidate the current document from the origin. A different pending destination uses a bounded request that bypasses local cache. Neither action deletes cookies, website data, or preferences, and both retain the draft-protection check. The recovery panel offers Open in Browser and Retry with Standard Appearance; the latter synchronously removes optional presentation scripts before reloading so it does not race the next SwiftUI update.
 
-Readiness rejects hidden content and requires an exact requested post ID. Username authentication and explicit empty-state surfaces count as rendered content. Stop Loading cancels probes and exposes a retry state. A terminated WebKit process is reported honestly: writing already lost in that process cannot be recovered by XGlass.
+Readiness rejects hidden content and requires an exact requested post ID. Photo and video lightboxes count as rendered content when their visible media or rendered controls have settled, even though X may render the modal outside the article link. A visible progress indicator still blocks the media fallback. A stale image cannot satisfy a normal status URL because the media fallback is limited to media paths. Username authentication and explicit empty-state surfaces count as rendered content. Stop Loading cancels probes and exposes a retry state. Main-frame failure callbacks are matched to the active WebKit navigation and get one bounded content probe before an error is shown, so a late callback cannot replace a document that already rendered. A terminated WebKit process is reported honestly: writing already lost in that process cannot be recovered by XGlass.
 
 ## Diagnostics, session restart, and interaction checks
 

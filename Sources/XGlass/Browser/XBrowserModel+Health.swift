@@ -38,11 +38,22 @@ extension XBrowserModel {
             return
         }
 
+        guard !isRunningHealthCheck else { return }
         isRunningHealthCheck = true
+        let checkID = UUID()
+        healthCheckID = checkID
+        Task { @MainActor [weak self] in
+            try? await Task.sleep(for: .seconds(5))
+            guard let self, self.healthCheckID == checkID else { return }
+            self.healthCheckID = nil
+            self.isRunningHealthCheck = false
+            self.statusMessage = "The web session did not respond to the health check."
+        }
 
         webView.evaluateJavaScript(xGlassHealthScript) { [weak self, webView] result, error in
             Task { @MainActor in
-                guard let self else { return }
+                guard let self, self.healthCheckID == checkID else { return }
+                self.healthCheckID = nil
                 self.isRunningHealthCheck = false
 
                 guard error == nil,

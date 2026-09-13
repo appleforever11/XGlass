@@ -10,6 +10,8 @@ struct XGlassWebTheme: Codable, Equatable {
     let border: String
     let incomingBubble: String
     let outgoingBubble: String
+    var surface: String = "#102832"
+    var accentForeground: String = "#071C22"
 }
 
 struct XGlassThemeColors {
@@ -28,9 +30,69 @@ struct XGlassThemeColors {
     let web: XGlassWebTheme
 }
 
+extension XGlassThemeColors {
+    var accentForeground: Color {
+        guard let color = NSColor(accent).usingColorSpace(.sRGB) else { return .black }
+        func linear(_ component: CGFloat) -> Double {
+            let value = Double(component)
+            return value <= 0.04045 ? value / 12.92 : pow((value + 0.055) / 1.055, 2.4)
+        }
+        let luminance = 0.2126 * linear(color.redComponent) + 0.7152 * linear(color.greenComponent) + 0.0722 * linear(color.blueComponent)
+        return luminance > 0.179 ? .black : .white
+    }
+
+    var webPresentation: XGlassWebTheme {
+        var palette = web
+        palette.surface = XGlassThemeCustomization.hex(for: content) ?? "#102832"
+        palette.accentForeground = XGlassThemeCustomization.hex(for: accentForeground) ?? "#071C22"
+        return palette
+    }
+
+    func applying(_ customization: XGlassThemeCustomization) -> XGlassThemeColors {
+        guard let components = customization.components,
+              let accentColor = customization.accentColor else {
+            return self
+        }
+
+        let rgb = "rgb(\(components.red), \(components.green), \(components.blue))"
+        let accentSoft = "rgba(\(components.red), \(components.green), \(components.blue), 0.16)"
+        let outgoingBubble = "rgba(\(components.red), \(components.green), \(components.blue), 0.50)"
+
+        return XGlassThemeColors(
+            window: window,
+            sidebar: sidebar,
+            content: content,
+            card: card,
+            selected: accentColor.opacity(0.32),
+            stroke: stroke,
+            text: text,
+            secondaryText: secondaryText,
+            primary: accentColor,
+            secondary: secondary,
+            tertiary: tertiary,
+            accent: accentColor,
+            web: XGlassWebTheme(
+                bandTop: web.bandTop,
+                bandBottom: web.bandBottom,
+                accent: rgb,
+                accentSoft: accentSoft,
+                text: web.text,
+                muted: web.muted,
+                border: web.border,
+                incomingBubble: web.incomingBubble,
+                outgoingBubble: outgoingBubble
+            )
+        )
+    }
+}
+
 extension XGlassThemeFamily {
     var colors: XGlassThemeColors {
         switch self {
+        case .goldenGate: Self.landscape(background: "17110D", panel: "2A1D17", card: "463127", accent: "E3A955", secondary: "89694A", highlight: "C9B087", text: "FFF7E9", muted: "C9B9A0")
+        case .bigSur: Self.landscape(background: "111D2C", panel: "20374D", card: "324D60", accent: "F4B393", secondary: "6B9FA8", highlight: "A9D4DC", text: "F4F7FA", muted: "B6CAD5")
+        case .mojave: Self.landscape(background: "1A1C2D", panel: "292B40", card: "414054", accent: "DFC093", secondary: "9B846F", highlight: "ABAED1", text: "FAF3E9", muted: "C5BED0")
+        case .sonoma: Self.landscape(background: "1B2117", panel: "2D3523", card: "465038", accent: "E1C477", secondary: "89996B", highlight: "CCD3AC", text: "F6F5E7", muted: "C5CAB1")
         case .tahoeTide:
             XGlassThemeColors(
                 window: rgb(0.035, 0.055, 0.075),

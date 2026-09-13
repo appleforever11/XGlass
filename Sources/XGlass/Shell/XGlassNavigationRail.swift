@@ -5,107 +5,86 @@ struct XGlassNavigationRail: View {
     @ObservedObject var settings: XGlassSettingsStore
     let showsLabels: Bool
 
-    @State private var isComposeHovering = false
-
-    private let primaryRoutes: [XRoute] = [
-        .home, .explore, .notifications, .messages, .bookmarks, .lists
-    ]
+    private let primaryRoutes: [XRoute] = [.home, .explore, .notifications, .messages, .bookmarks, .lists]
 
     var body: some View {
-        VStack(spacing: 8) {
-            brand
-
-            Divider()
-                .overlay(settings.colors.stroke)
-                .padding(.vertical, 4)
-
-            ForEach(primaryRoutes) { route in
-                XGlassNavigationButton(
-                    route: route,
-                    isSelected: browser.activeRoute == route,
-                    showsLabel: showsLabels,
-                    colors: settings.colors,
-                    action: { browser.navigate(to: route) }
-                )
+        VStack(spacing: 6) {
+            HStack(spacing: 10) {
+                XGlassBrandMark(colors: settings.colors, size: 24).frame(width: 34, height: 34)
+                if showsLabels {
+                    Text("XGlass").font(.system(size: 16, weight: .bold))
+                    Spacer(minLength: 0)
+                }
             }
+            .frame(maxWidth: .infinity)
+            .frame(height: 52)
+            .accessibilityElement(children: .combine)
+            .accessibilityLabel("XGlass")
 
-            Spacer(minLength: 10)
+            ScrollView {
+                VStack(spacing: 6) {
+                    ForEach(primaryRoutes) { route in
+                        XGlassNavigationButton(
+                            route: route, isSelected: browser.activeRoute == route,
+                            showsLabel: showsLabels, colors: settings.colors,
+                            unreadState: route == .notifications ? browser.unreadState : XGlassUnreadState(),
+                            action: { browser.navigate(to: route) }
+                        )
+                    }
+                }
+                .padding(.vertical, 6)
+            }
+            .scrollIndicators(.hidden)
+            .frame(maxHeight: .infinity)
 
             XGlassNavigationButton(
-                route: .profile,
-                isSelected: browser.activeRoute == .profile,
-                showsLabel: showsLabels,
-                colors: settings.colors,
+                route: .profile, isSelected: browser.activeRoute == .profile,
+                showsLabel: showsLabels, colors: settings.colors,
                 action: browser.navigateToOwnProfile
             )
 
-            XGlassNavigationButton(
-                route: .settings,
-                label: "X Settings",
-                isSelected: browser.activeRoute == .settings,
-                showsLabel: showsLabels,
-                colors: settings.colors,
-                action: { browser.navigate(to: .settings) }
-            )
-
-            Button {
-                browser.navigate(to: .compose)
+            Menu {
+                SettingsLink { Label("XGlass Settings...", systemImage: "paintpalette") }
+                Button("X Account Settings", systemImage: "person.crop.circle") { browser.navigate(to: .settings) }
             } label: {
-                HStack(spacing: 8) {
-                    Image(systemName: XRoute.compose.systemImage)
-                    if showsLabels {
-                        Text("New Post")
-                    }
+                HStack(spacing: 10) {
+                    Image(systemName: "gearshape").frame(width: 28, height: 28)
+                    if showsLabels { Text("Settings"); Spacer(minLength: 0) }
                 }
-                .font(.system(size: 13, weight: .bold))
+                .font(.system(size: 16, weight: .semibold))
+                .padding(.horizontal, showsLabels ? 8 : 6)
                 .frame(maxWidth: .infinity)
-                .frame(height: 42)
+                .frame(height: 40)
+                .contentShape(Rectangle())
+            }
+            .menuStyle(.button)
+            .buttonStyle(.plain)
+            .menuIndicator(.hidden)
+            .fixedSize(horizontal: false, vertical: true)
+            .help("Settings")
+            .accessibilityLabel("Settings")
+
+            Button { browser.navigate(to: .compose) } label: {
+                HStack(spacing: 8) {
+                    Image(systemName: "square.and.pencil")
+                    if showsLabels { Text("New Post") }
+                }
+                .font(.system(size: 14, weight: .semibold))
+                .frame(maxWidth: .infinity)
+                .frame(height: 40)
+                .foregroundStyle(settings.colors.accentForeground)
+                .background(settings.colors.accent, in: RoundedRectangle(cornerRadius: 8))
             }
             .buttonStyle(.plain)
-            .foregroundStyle(Color.black.opacity(0.86))
-            .background(settings.colors.accent, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
-            .overlay {
-                RoundedRectangle(cornerRadius: 10, style: .continuous)
-                    .stroke(settings.colors.text.opacity(isComposeHovering ? 0.38 : 0.18), lineWidth: 1)
-            }
-            .shadow(
-                color: settings.colors.accent.opacity(isComposeHovering ? 0.32 : 0.18),
-                radius: isComposeHovering ? 9 : 5,
-                y: 3
-            )
-            .onHover { isComposeHovering = $0 }
             .help("New Post")
             .accessibilityLabel("New Post")
+            .padding(.top, 4)
+            .fixedSize(horizontal: false, vertical: true)
         }
-        .padding(8)
-        .background(.ultraThinMaterial)
-        .background(settings.colors.sidebar.opacity(0.34 * settings.glassIntensity))
-        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-        .overlay {
-            RoundedRectangle(cornerRadius: 16, style: .continuous)
-                .stroke(settings.colors.stroke, lineWidth: 1)
-        }
-    }
-
-    private var brand: some View {
-        HStack(spacing: 9) {
-            XGlassBrandMark(colors: settings.colors, size: 24)
-                .frame(width: 34, height: 34)
-            if showsLabels {
-                VStack(alignment: .leading, spacing: 0) {
-                    Text("XGlass")
-                        .font(.system(size: 14, weight: .bold))
-                    Text("X for Mac")
-                        .font(.caption2)
-                        .foregroundStyle(settings.colors.secondaryText)
-                }
-                Spacer(minLength: 0)
-            }
-        }
-        .frame(maxWidth: .infinity)
-        .frame(height: 42)
-        .accessibilityElement(children: .combine)
-        .accessibilityLabel("XGlass")
+        .padding(.horizontal, 8)
+        .padding(.bottom, 12)
+        .foregroundStyle(settings.colors.secondaryText)
+        .background(settings.colors.sidebar.opacity(0.20 + 0.30 * settings.glassIntensity))
     }
 }
 
@@ -115,6 +94,7 @@ struct XGlassNavigationButton: View {
     let isSelected: Bool
     let showsLabel: Bool
     let colors: XGlassThemeColors
+    var unreadState = XGlassUnreadState()
     let action: () -> Void
 
     @State private var isHovering = false
@@ -125,6 +105,23 @@ struct XGlassNavigationButton: View {
                 Image(systemName: route.systemImage)
                     .font(.system(size: 16, weight: .semibold))
                     .frame(width: 28, height: 28)
+                    .overlay(alignment: .topTrailing) {
+                        if unreadState.isVisible {
+                            Group {
+                                if let text = unreadState.badgeText {
+                                    Text(text).font(.system(size: 9, weight: .bold))
+                                        .padding(.horizontal, 4).frame(minWidth: 15, minHeight: 15)
+                                } else {
+                                    Circle().frame(width: 9, height: 9)
+                                }
+                            }
+                            .foregroundStyle(unreadState.badgeText == nil ? Color(red: 0.78, green: 0.08, blue: 0.14) : Color.white)
+                            .background(Color(red: 0.78, green: 0.08, blue: 0.14), in: Capsule())
+                            .overlay(Capsule().stroke(colors.content, lineWidth: 1.5))
+                            .offset(x: 6, y: -3)
+                            .accessibilityHidden(true)
+                        }
+                    }
 
                 if showsLabel {
                     Text(label ?? route.rawValue)
@@ -159,7 +156,7 @@ struct XGlassNavigationButton: View {
         .onHover { isHovering = $0 }
         .help(label ?? route.rawValue)
         .accessibilityLabel(label ?? route.rawValue)
-        .accessibilityValue(isSelected ? "Current page" : "")
+        .accessibilityValue([isSelected ? "Current page" : "", unreadState.accessibilityDescription].filter { !$0.isEmpty }.joined(separator: ", "))
         .accessibilityAddTraits(isSelected ? .isSelected : [])
     }
 }

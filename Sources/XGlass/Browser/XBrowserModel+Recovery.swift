@@ -1,5 +1,8 @@
 import AppKit
+import OSLog
 import WebKit
+
+private let xglassLoadLogger = Logger(subsystem: "com.kevinhowe.XGlass", category: "loading")
 
 @MainActor
 extension XBrowserModel {
@@ -19,6 +22,7 @@ extension XBrowserModel {
     func recordLoadEvent(_ event: String) {
         diagnosticEvents.append("\(Date().formatted(date: .omitted, time: .standard)) \(event)")
         if diagnosticEvents.count > 60 { diagnosticEvents.removeFirst(diagnosticEvents.count - 60) }
+        xglassLoadLogger.info("\(event, privacy: .public)")
     }
 
     func monitorPageReadiness(in webView: WKWebView) {

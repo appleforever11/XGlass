@@ -10,6 +10,7 @@ final class XGlassRouteTests: XCTestCase {
         XCTAssertEqual(XRoute.match(url: URL(string: "https://x.com/notifications")!), .notifications)
         XCTAssertEqual(XRoute.match(url: URL(string: "https://x.com/i/bookmarks")!), .bookmarks)
         XCTAssertEqual(XRoute.match(url: URL(string: "https://x.com/i/lists/123")!), .lists)
+        XCTAssertEqual(XRoute.match(url: URL(string: "https://x.com/example_user/lists")!), .lists)
         XCTAssertEqual(XRoute.match(url: URL(string: "https://x.com/settings/account")!), .settings)
         XCTAssertEqual(XRoute.match(url: URL(string: "https://x.com/compose/post")!), .compose)
         XCTAssertNil(XRoute.match(url: URL(string: "https://x.com/appleforever11/status/123")!))
@@ -35,6 +36,7 @@ final class XGlassSettingsStoreTests: XCTestCase {
         let settings = XGlassSettingsStore(defaults: defaults)
 
         XCTAssertEqual(settings.theme, .tahoeTide)
+        XCTAssertEqual(settings.themeCustomization, .empty)
         XCTAssertEqual(settings.backgroundGlow, 0.78, accuracy: 0.001)
         XCTAssertEqual(settings.glassIntensity, 0.82, accuracy: 0.001)
         XCTAssertTrue(settings.reduceMotion)
@@ -60,6 +62,33 @@ final class XGlassSettingsStoreTests: XCTestCase {
         XCTAssertFalse(restored.hidePromotedPosts)
         XCTAssertEqual(restored.feedWidth, .expansive)
         XCTAssertFalse(restored.showBrowserToolbar)
+    }
+
+    func testThemeCustomizationNormalizesHexValues() {
+        XCTAssertEqual(XGlassThemeCustomization.normalizeHex("  #4c8  "), "#44CC88")
+        XCTAssertEqual(XGlassThemeCustomization.normalizeHex("AABBCC"), "#AABBCC")
+        XCTAssertNil(XGlassThemeCustomization.normalizeHex("#12"))
+        XCTAssertNil(XGlassThemeCustomization.normalizeHex("#GGGGGG"))
+    }
+
+    func testCustomAccentPersistsAndUpdatesPayload() throws {
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        let settings = XGlassSettingsStore(defaults: defaults)
+        settings.setTheme(.forestRadar)
+        settings.setThemeAccentHex("#f0a")
+
+        XCTAssertEqual(settings.themeCustomization.normalizedAccentHex, "#FF00AA")
+
+        let themeObject = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(settings.javascriptThemePayload.utf8)) as? [String: String])
+        XCTAssertEqual(themeObject["accent"], "rgb(255, 0, 170)")
+
+        let restored = XGlassSettingsStore(defaults: defaults)
+        XCTAssertEqual(restored.themeCustomization.normalizedAccentHex, "#FF00AA")
+
+        restored.resetThemeCustomization()
+        XCTAssertEqual(restored.themeCustomization, .empty)
+        let resetThemeObject = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(restored.javascriptThemePayload.utf8)) as? [String: String])
+        XCTAssertEqual(resetThemeObject["accent"], XGlassThemeFamily.forestRadar.colors.web.accent)
     }
 
     func testJavaScriptPayloadsAreValidAndReflectSettings() throws {
@@ -92,6 +121,7 @@ final class XGlassSettingsStoreTests: XCTestCase {
         XCTAssertTrue(settings.showBrowserToolbar)
         XCTAssertFalse(settings.compactSidebar)
         XCTAssertTrue(settings.reduceMotion)
+        XCTAssertEqual(settings.themeCustomization, .empty)
     }
 }
 
@@ -133,7 +163,7 @@ final class XGlassShellLayoutTests: XCTestCase {
         let standard = XGlassShellLayout(windowWidth: 900, compactPreference: false)
         let wide = XGlassShellLayout(windowWidth: 1280, compactPreference: false)
 
-        XCTAssertEqual(narrow.railWidth, 58)
+        XCTAssertEqual(narrow.railWidth, 80)
         XCTAssertTrue(narrow.isCompact)
         XCTAssertFalse(standard.showsRouteLabels)
         XCTAssertTrue(wide.showsRouteLabels)
@@ -144,7 +174,7 @@ final class XGlassShellLayoutTests: XCTestCase {
         let layout = XGlassShellLayout(windowWidth: 1280, compactPreference: true)
 
         XCTAssertFalse(layout.showsRouteLabels)
-        XCTAssertEqual(layout.railWidth, 66)
+        XCTAssertEqual(layout.railWidth, 80)
     }
 }
 
@@ -254,6 +284,13 @@ final class XGlassDOMScriptTests: XCTestCase {
 
         XCTAssertTrue(script.contains("const minimumPaintInterval = 250;"))
         XCTAssertTrue(script.contains("new MutationObserver((records) =>"))
+        XCTAssertTrue(script.contains("mutationTouchesSearch"))
+        XCTAssertTrue(script.contains("attributes: true"))
+        XCTAssertTrue(script.contains("data-xglass-search-active"))
+        XCTAssertTrue(script.contains("data-xglass-search-layer"))
+        XCTAssertTrue(script.contains("data-xglass-search-hidden"))
+        XCTAssertTrue(script.contains("if (!expandedCombobox || !primaryColumn) return;"))
+        XCTAssertTrue(script.contains("--xglass-search-cover-top"))
         XCTAssertTrue(script.contains("xglass-layout-overrides"))
         XCTAssertFalse(script.contains("__XGLASS_BASE_STYLES__"))
         XCTAssertFalse(script.contains("__XGLASS_THEME_STYLES__"))

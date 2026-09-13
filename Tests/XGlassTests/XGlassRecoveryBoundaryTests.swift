@@ -54,4 +54,49 @@ final class XGlassRecoveryBoundaryTests: XCTestCase {
         let ready = try await view.evaluateJavaScript(XGlassLoadWatchdog.readinessScript)
         XCTAssertEqual(ready as? Bool, true)
     }
+
+    func testNavigationFailureKeepsAlreadyRenderedDocument() async throws {
+        let config = WKWebViewConfiguration()
+        config.websiteDataStore = .nonPersistent()
+        let view = WKWebView(frame: NSRect(x: 0, y: 0, width: 600, height: 600), configuration: config)
+        view.loadHTMLString("<main><article>Rendered content that should remain visible</article></main>", baseURL: URL(string: "https://x.com/home"))
+        for _ in 0..<30 {
+            if (try? await view.evaluateJavaScript("!!document.querySelector('article')")) as? Bool == true { break }
+            try await Task.sleep(for: .milliseconds(100))
+        }
+
+        let model = XBrowserModel()
+        model.webView = view
+        model.loadState = "Loading"
+        model.webView(view, didFail: nil, withError: URLError(.cannotConnectToHost))
+        for _ in 0..<30 {
+            if model.loadState == "Ready" { break }
+            try await Task.sleep(for: .milliseconds(100))
+        }
+        XCTAssertEqual(model.loadState, "Ready")
+        XCTAssertNil(model.statusMessage)
+        XCTAssertFalse(model.canRetry)
+    }
+
+    func testNavigationFailureShowsRecoveryForUnrenderedDocument() async throws {
+        let config = WKWebViewConfiguration()
+        config.websiteDataStore = .nonPersistent()
+        let view = WKWebView(frame: NSRect(x: 0, y: 0, width: 600, height: 600), configuration: config)
+        view.loadHTMLString("<main><div role='progressbar'></div></main>", baseURL: URL(string: "https://x.com/home"))
+        for _ in 0..<30 {
+            if (try? await view.evaluateJavaScript("!!document.querySelector('[role=progressbar]')")) as? Bool == true { break }
+            try await Task.sleep(for: .milliseconds(100))
+        }
+
+        let model = XBrowserModel()
+        model.webView = view
+        model.loadState = "Loading"
+        model.webView(view, didFailProvisionalNavigation: nil, withError: URLError(.notConnectedToInternet))
+        for _ in 0..<30 {
+            if model.loadState == "Offline" { break }
+            try await Task.sleep(for: .milliseconds(100))
+        }
+        XCTAssertEqual(model.loadState, "Offline")
+        XCTAssertTrue(model.canRetry)
+    }
 }

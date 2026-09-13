@@ -258,9 +258,23 @@ enum XGlassDOMBaseStyles {
           box-shadow: none !important;
         }
 
+        [data-xglass-search-active="true"] {
+          background: linear-gradient(
+            180deg,
+            color-mix(in srgb, var(--xglass-band-top, rgba(40, 111, 117, 0.72)) 50%, rgba(8, 20, 26, 0.98)),
+            color-mix(in srgb, var(--xglass-band-bottom, rgba(24, 86, 95, 0.68)) 54%, rgba(8, 20, 26, 0.99))
+          ) !important;
+          background-color: rgba(11, 35, 41, 0.98) !important;
+        }
+
+        [data-xglass-search-hidden="true"] {
+          visibility: hidden !important;
+          pointer-events: none !important;
+        }
+
         [data-xglass-reply-composer="true"] {
-          background: linear-gradient(180deg, rgba(40, 111, 117, 0.38), rgba(24, 86, 95, 0.28)) !important;
-          background-image: linear-gradient(180deg, rgba(40, 111, 117, 0.38), rgba(24, 86, 95, 0.28)) !important;
+          background: linear-gradient(180deg, var(--xglass-band-top), var(--xglass-band-bottom)) !important;
+          background-image: linear-gradient(180deg, var(--xglass-band-top), var(--xglass-band-bottom)) !important;
           border-top: 1px solid rgba(190, 235, 231, 0.12) !important;
           border-bottom: 1px solid rgba(190, 235, 231, 0.12) !important;
           border-radius: 0 !important;
