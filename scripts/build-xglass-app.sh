@@ -9,6 +9,10 @@ require_app_stopped "$APP_DIR/Contents/MacOS/$APP_NAME"
 SOURCE_ICON="$ROOT_DIR/Sources/XGlass/Resources/XGlass.icns"
 BUILD_CONFIGURATION="${XGLASS_BUILD_CONFIGURATION:-debug}"
 SIGNING_IDENTITY="${XGLASS_SIGNING_IDENTITY:-${SIGNING_IDENTITY:-}}"
+# Keep release builds on the same compiler path as the test workflow. Swift
+# 6.3.3 can crash while emitting a batched SwiftUI settings module; compiling
+# each primary file independently avoids that runner-specific IRGen failure.
+SWIFT_COMPILER_FLAGS=(-Xswiftc -disable-batch-mode)
 STAGING_ROOT="$(mktemp -d "${TMPDIR:-/tmp}/xglass-build.XXXXXX")"
 STAGED_APP_DIR="$STAGING_ROOT/$APP_NAME.app"
 STAGED_CONTENTS_DIR="$STAGED_APP_DIR/Contents"
@@ -54,7 +58,7 @@ if [[ -n "${XGLASS_SWIFT_BUILD_SYSTEM:-}" ]]; then
   BUILD_OPTIONS+=(--build-system "$XGLASS_SWIFT_BUILD_SYSTEM")
 fi
 swift "${PACKAGE_OPTIONS[@]}" resolve
-swift "${BUILD_OPTIONS[@]}" --product "$APP_NAME" --configuration "$BUILD_CONFIGURATION"
+swift "${BUILD_OPTIONS[@]}" --product "$APP_NAME" --configuration "$BUILD_CONFIGURATION" "${SWIFT_COMPILER_FLAGS[@]}"
 BIN_PATH="$(swift "${BUILD_OPTIONS[@]}" --show-bin-path --configuration "$BUILD_CONFIGURATION")"
 
 SPARKLE_FRAMEWORK="${SPARKLE_FRAMEWORK_PATH:-$BUILD_ROOT/artifacts/sparkle/Sparkle/Sparkle.xcframework/macos-arm64_x86_64/Sparkle.framework}"

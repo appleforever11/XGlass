@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.2.1
+
+- Made SwiftPM test and release builds use independent Swift primary-file compilation so Swift 6.3.3 runners avoid the batch IRGen crash encountered in the settings module.
+
 ## 1.2.0
 
 - Hardened startup and recovery with rendered-content readiness checks, bounded retries, draft protection, session restart, compatibility recovery, and content-free Diagnostics telemetry.

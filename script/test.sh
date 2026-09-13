@@ -4,6 +4,10 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 BUILD_CONFIGURATION="${XGLASS_BUILD_CONFIGURATION:-debug}"
 TEST_BUILD_CONFIGURATION="${XGLASS_TEST_BUILD_CONFIGURATION:-debug}"
+# Swift 6.3.3 on the GitHub macOS runner can crash in batch IR generation for
+# the SwiftUI settings module. Compile primary files independently so the
+# release check remains deterministic across the supported toolchains.
+SWIFT_COMPILER_FLAGS=(-Xswiftc -disable-batch-mode)
 
 cd "$ROOT_DIR"
 
@@ -18,10 +22,10 @@ if ! /usr/bin/grep -Eq 'minimumPaintInterval = 250' "$WEB_VIEW_SOURCE"; then
 fi
 
 swift package resolve
-swift build --product XGlass --configuration "$BUILD_CONFIGURATION"
+swift build --product XGlass --configuration "$BUILD_CONFIGURATION" "${SWIFT_COMPILER_FLAGS[@]}"
 
 TEST_BUILD_PATH="$(mktemp -d "${TMPDIR:-/tmp}/XGlassTests.XXXXXX")"
-swift build --build-tests --configuration "$TEST_BUILD_CONFIGURATION" --build-path "$TEST_BUILD_PATH"
+swift build --build-tests --configuration "$TEST_BUILD_CONFIGURATION" --build-path "$TEST_BUILD_PATH" "${SWIFT_COMPILER_FLAGS[@]}"
 
 # Xcode-backed SwiftPM builds put binary frameworks beside an XCTest bundle,
 # whose generated rpath points at a PackageFrameworks directory. Native
